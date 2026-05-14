@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { getStudentWorkouts, upsertWorkout } from '../store/operationalStore';
+
+type Props = { studentId: number };
 
 type ExerciseRow = {
   id: number;
@@ -24,10 +27,12 @@ const defaultExercise: ExerciseRow = {
   notes: 'Séries válidas próximas da falha. Bateu topo do range, subir carga.'
 };
 
-export default function WorkoutBuilderPanel() {
+export default function WorkoutBuilderPanel({ studentId }: Props) {
   const [workoutName, setWorkoutName] = useState('Treino A');
   const [week, setWeek] = useState('Semana 1');
   const [exercises, setExercises] = useState<ExerciseRow[]>([defaultExercise]);
+  const [savedAt, setSavedAt] = useState('');
+  const [savedCount, setSavedCount] = useState(() => getStudentWorkouts(studentId).length);
 
   function updateExercise(id: number, patch: Partial<ExerciseRow>) {
     setExercises((current) =>
@@ -53,12 +58,37 @@ export default function WorkoutBuilderPanel() {
     setExercises((current) => current.filter((exercise) => exercise.id !== id));
   }
 
+  function saveWorkout() {
+    const weekNumber = Number(week.replace('Semana ', '')) || 1;
+    const updatedAt = new Date().toISOString();
+
+    upsertWorkout({
+      id: `${studentId}-${weekNumber}-${workoutName}`,
+      studentId,
+      week: weekNumber,
+      name: workoutName,
+      updatedAt,
+      exercises: exercises.map((exercise) => ({
+        ...exercise,
+        id: String(exercise.id)
+      }))
+    });
+
+    setSavedAt(updatedAt);
+    setSavedCount(getStudentWorkouts(studentId).length);
+  }
+
   return (
     <div style={panel}>
       <h2 style={{ marginBottom: 10 }}>Editor de treino do aluno</h2>
       <p style={{ color: '#a0a0a0', marginBottom: 18 }}>
         Crie, edite e organize os treinos semanais do aluno com séries de aquecimento, ajuste e válidas.
       </p>
+
+      <div style={statusBox}>
+        <span>Treinos salvos deste aluno: <strong>{savedCount}</strong></span>
+        <span>Último salvamento: <strong>{savedAt || 'ainda não salvo'}</strong></span>
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
         <input value={workoutName} onChange={(event) => setWorkoutName(event.target.value)} style={input} />
@@ -93,64 +123,16 @@ export default function WorkoutBuilderPanel() {
       </div>
 
       <button onClick={addExercise} style={button}>+ Adicionar exercício</button>
-      <button style={saveButton}>SALVAR TREINO DO ALUNO</button>
+      <button onClick={saveWorkout} style={saveButton}>SALVAR TREINO DO ALUNO</button>
     </div>
   );
 }
 
-const panel = {
-  background: '#101010',
-  border: '1px solid #262626',
-  borderRadius: 24,
-  padding: 24,
-  marginBottom: 22
-};
-
-const exerciseCard = {
-  background: '#0b0b0b',
-  border: '1px solid #1f1f1f',
-  borderRadius: 18,
-  padding: 16
-};
-
-const grid = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
-  gap: 10
-};
-
-const input = {
-  background: '#090909',
-  color: '#fff',
-  border: '1px solid #262626',
-  borderRadius: 12,
-  padding: '12px 14px',
-  width: '100%'
-};
-
-const button = {
-  background: '#161616',
-  color: '#fff',
-  border: '1px solid #333',
-  borderRadius: 14,
-  padding: '14px 18px',
-  marginTop: 16,
-  width: '100%',
-  cursor: 'pointer',
-  fontWeight: 800
-};
-
-const saveButton = {
-  ...button,
-  background: '#e01616',
-  border: 0
-};
-
-const dangerButton = {
-  background: '#260808',
-  color: '#ffb8b8',
-  border: '1px solid #4a1111',
-  borderRadius: 10,
-  padding: '8px 10px',
-  cursor: 'pointer'
-};
+const panel = { background: '#101010', border: '1px solid #262626', borderRadius: 24, padding: 24, marginBottom: 22 };
+const exerciseCard = { background: '#0b0b0b', border: '1px solid #1f1f1f', borderRadius: 18, padding: 16 };
+const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10 };
+const input = { background: '#090909', color: '#fff', border: '1px solid #262626', borderRadius: 12, padding: '12px 14px', width: '100%' };
+const button = { background: '#161616', color: '#fff', border: '1px solid #333', borderRadius: 14, padding: '14px 18px', marginTop: 16, width: '100%', cursor: 'pointer', fontWeight: 800 };
+const saveButton = { ...button, background: '#e01616', border: 0 };
+const dangerButton = { background: '#260808', color: '#ffb8b8', border: '1px solid #4a1111', borderRadius: 10, padding: '8px 10px', cursor: 'pointer' };
+const statusBox = { background: '#0b0b0b', border: '1px solid #1f1f1f', borderRadius: 16, padding: 14, display: 'grid', gap: 8, color: '#d8d8d8', marginBottom: 18 };
