@@ -1,8 +1,19 @@
 import { useMemo, useState } from 'react';
+import StudentCrudPanel from './components/StudentCrudPanel';
+import ProgressChart from './components/ProgressChart';
+import AttendanceCalendar from './components/AttendanceCalendar';
+import WorkoutTimer from './components/WorkoutTimer';
+import BackupPanel from './components/BackupPanel';
+import CloudStatus from './components/CloudStatus';
+import SystemStatus from './components/SystemStatus';
+import AppAuditPanel from './components/AppAuditPanel';
+import StoreStatusPanel from './components/StoreStatusPanel';
+import InstallAppCard from './components/InstallAppCard';
+import { loadAppStore } from './store/appStore';
+import { runAppAudit } from './utils/appAudit';
 
 type MainTab = 'dashboard' | 'students' | 'library' | 'settings';
 type StudentTab = 'overview' | 'training' | 'logbook' | 'assessments' | 'photos' | 'calendar' | 'cycle' | 'assistant' | 'summary';
-
 type Exercise = { name:string; group:string; category:string; range:string; rest:string; level:string; substitutes:string[] };
 type Student = { id:number; name:string; age:number; weight:number; height:number; goal:string; phase:string; frequency:number; priority:string[]; alerts:string[] };
 
@@ -18,7 +29,6 @@ const students: Student[] = [
 ];
 
 const groups = ['Peitoral','Costas','Dorsal','Trapézio','Deltoide anterior','Deltoide lateral','Deltoide posterior','Bíceps','Tríceps','Antebraço','Abdômen','Glúteos','Quadríceps','Posteriores','Adutores','Abdutores','Panturrilhas'];
-
 const baseExercises: Exercise[] = [
   ['Supino reto barra','Peitoral','Composto','5-10','2-4 min','Intermediário'],['Supino inclinado halteres','Peitoral','Composto','5-10','2-4 min','Intermediário'],['Supino inclinado smith','Peitoral','Composto','5-10','2-4 min','Intermediário'],['Supino máquina convergente','Peitoral','Composto','5-10','2-4 min','Iniciante'],['Crucifixo máquina','Peitoral','Isolador','8-15','60-120s','Iniciante'],['Crucifixo cabo','Peitoral','Isolador','8-15','60-120s','Intermediário'],['Cross over','Peitoral','Isolador','8-15','60-120s','Intermediário'],
   ['Puxada alta aberta','Costas','Composto','5-10','2-4 min','Iniciante'],['Puxada neutra','Dorsal','Composto','5-10','2-4 min','Iniciante'],['Remada curvada','Costas','Composto','5-10','2-4 min','Avançado'],['Remada baixa','Costas','Composto','5-10','2-4 min','Iniciante'],['Remada articulada','Costas','Composto','5-10','2-4 min','Intermediário'],['Pull down','Dorsal','Isolador','8-15','60-120s','Intermediário'],['Pullover máquina','Dorsal','Isolador','8-15','60-120s','Iniciante'],
@@ -30,78 +40,38 @@ const baseExercises: Exercise[] = [
   ['Hip thrust','Glúteos','Composto','6-10','2-4 min','Intermediário'],['Coice cabo','Glúteos','Isolador','12-20','60-120s','Iniciante'],['Abdutora','Abdutores','Isolador','12-20','60-120s','Iniciante'],['Leg press glúteo','Glúteos','Composto','6-10','2-4 min','Intermediário'],['Step up','Glúteos','Composto','6-10','2-4 min','Intermediário'],
   ['Cadeira adutora','Adutores','Isolador','8-15','60-120s','Iniciante'],['Cadeira abdutora','Abdutores','Isolador','12-20','60-120s','Iniciante'],['Panturrilha em pé','Panturrilhas','Isolador','8-15','60-120s','Iniciante'],['Panturrilha sentado','Panturrilhas','Isolador','8-15','60-120s','Iniciante'],['Crunch cabo','Abdômen','Isolador','10-20','45-90s','Iniciante'],['Prancha','Abdômen','Estabilidade','10-20','45-90s','Iniciante']
 ].map(([name, group, category, range, rest, level]) => ({ name, group, category, range, rest, level, substitutes: ['Variação máquina','Variação cabo','Variação halteres'] }));
-
-const library = Array.from({length: 204}, (_, i) => {
-  const e = baseExercises[i % baseExercises.length];
-  return i < baseExercises.length ? e : { ...e, name: `${e.name} - variação ${Math.floor(i / baseExercises.length) + 1}` };
-});
-
+const library = Array.from({length: 204}, (_, i) => { const e = baseExercises[i % baseExercises.length]; return i < baseExercises.length ? e : { ...e, name: `${e.name} - variação ${Math.floor(i / baseExercises.length) + 1}` }; });
 const weeks = Array.from({length:8},(_,i)=>`Semana ${i+1}`);
 const workouts = ['Treino A','Treino B','Treino C','Treino D','Treino E','Treino F'];
-const studentTabs: {id:StudentTab; label:string}[] = [
-  ['overview','Visão Geral'],['training','Treinos'],['logbook','Logbook Presencial'],['assessments','Avaliações Físicas'],['photos','Fotos'],['calendar','Calendário'],['cycle','Evolução do Ciclo'],['assistant','Assistente DG'],['summary','Resumo']
-].map(([id,label])=>({id:id as StudentTab,label}));
+const studentTabs: {id:StudentTab; label:string}[] = [['overview','Visão Geral'],['training','Treinos'],['logbook','Logbook Presencial'],['assessments','Avaliações Físicas'],['photos','Fotos'],['calendar','Calendário'],['cycle','Evolução do Ciclo'],['assistant','Assistente DG'],['summary','Resumo']].map(([id,label])=>({id:id as StudentTab,label}));
 
 export default function App() {
   const [tab,setTab] = useState<MainTab>('dashboard');
   const [selected,setSelected] = useState<Student | null>(null);
   const [studentTab,setStudentTab] = useState<StudentTab>('overview');
   const [group,setGroup] = useState('Todos');
-
-  return <div style={s.app}>
-    <aside style={s.sidebar}>
-      <div style={s.logo}>DG TEAM</div>
-      <div style={s.gorilla}>GORILA DG</div>
-      {(['dashboard','students','library','settings'] as MainTab[]).map(t => <button key={t} onClick={()=>{setTab(t);setSelected(null)}} style={tab===t?s.navActive:s.nav}>{labelMain(t)}</button>)}
-    </aside>
-    <main style={s.main}>
-      {tab==='dashboard' && <Dashboard />}
-      {tab==='students' && !selected && <Students onSelect={(st)=>{setSelected(st);setStudentTab('overview')}} />}
-      {tab==='students' && selected && <StudentProfile student={selected} active={studentTab} setActive={setStudentTab} />}
-      {tab==='library' && <Library group={group} setGroup={setGroup} />}
-      {tab==='settings' && <Settings />}
-    </main>
-  </div>
+  return <div style={s.app}><aside style={s.sidebar}><div style={s.logo}>DG TEAM</div><div style={s.gorilla}>GORILA DG</div>{(['dashboard','students','library','settings'] as MainTab[]).map(t => <button key={t} onClick={()=>{setTab(t);setSelected(null)}} style={tab===t?s.navActive:s.nav}>{labelMain(t)}</button>)}</aside><main style={s.main}>{tab==='dashboard' && <Dashboard />}{tab==='students' && !selected && <Students onSelect={(st)=>{setSelected(st);setStudentTab('overview')}} />}{tab==='students' && selected && <StudentProfile student={selected} active={studentTab} setActive={setStudentTab} />}{tab==='library' && <Library group={group} setGroup={setGroup} />}{tab==='settings' && <Settings />}</main></div>
 }
-
-function Dashboard(){
-  return <Section title="Dashboard DG TEAM" subtitle="Resumo premium da consultoria.">
-    <Grid><Card title="Total de alunos" value="128"/><Card title="Treinos hoje" value="24"/><Card title="Frequência semanal" value="76%"/><Card title="Volume Load" value="125.430kg"/></Grid>
-    <div style={s.two}><Panel title="Evolução semanal"><Bars /></Panel><Panel title="Alertas IA DG"><AiList /></Panel></div>
-  </Section>
-}
-
-function Students({onSelect}:{onSelect:(s:Student)=>void}){return <Section title="Alunos" subtitle="Gestão individual, treinos e evolução.">
-  <button style={s.primary}>+ Novo aluno</button><Grid>{students.map(st=><div key={st.id} style={s.card} onClick={()=>onSelect(st)}><h3>{st.name}</h3><p>{st.goal}</p><p>{st.frequency}x por semana</p><div style={s.badge}>{st.priority.join(' + ')}</div></div>)}</Grid>
-</Section>}
-
-function StudentProfile({student,active,setActive}:{student:Student;active:StudentTab;setActive:(t:StudentTab)=>void}){return <Section title={student.name} subtitle={`${student.goal} • ${student.phase} • ${student.frequency}x/semana`}>
-  <div style={s.tabs}>{studentTabs.map(t=><button style={active===t.id?s.tabActive:s.tab} onClick={()=>setActive(t.id)}>{t.label}</button>)}</div>
-  {active==='overview' && <Overview student={student}/>} {active==='training' && <Training />} {active==='logbook' && <Logbook />} {active==='assessments' && <Assessments />} {active==='photos' && <Photos />} {active==='calendar' && <Calendar />} {active==='cycle' && <Cycle />} {active==='assistant' && <Assistant />} {active==='summary' && <Summary />}
-</Section>}
-
-function Overview({student}:{student:Student}){return <Grid><Card title="Peso" value={`${student.weight}kg`}/><Card title="Altura" value={`${student.height}cm`}/><Card title="Prioridade" value={student.priority.join(', ')}/><Panel title="Alertas">{student.alerts.map(a=><p style={s.item}>{a}</p>)}</Panel></Grid>}
-function Training(){return <div>{weeks.map(w=><Panel title={w} key={w}><div style={s.workouts}>{workouts.map(x=><div style={s.mini}><b>{x}</b><p>Exercícios, aquecimento, feeders, válidas, descanso e RIR.</p></div>)}</div><VolumeTable /></Panel>)}</div>}
-function Logbook(){return <Panel title="Modo Aula / Logbook Presencial"><p style={s.muted}>Puxa os treinos da aba Treinos. Registre somente cargas, reps, RIR, execução e observações rápidas.</p>{['Supino inclinado halteres','Remada articulada','Elevação lateral cabo'].map(ex=><div style={s.log}><b>{ex}</b><div style={s.row}><input placeholder="Carga" style={s.input}/><input placeholder="Reps" style={s.input}/><input placeholder="RIR" style={s.input}/><button style={s.primary}>Timer</button><button style={s.primary}>Salvar série</button></div><p style={s.ai}>IA DG: atingiu topo do range com boa execução? Sugestão: subir carga levemente.</p></div>)}<button style={s.save}>SALVAR TREINO</button></Panel>}
-function Assessments(){return <Grid>{['Semana 1','Semana 4','Semana 8'].map(w=><Panel title={w}><input style={s.input} placeholder="Peso"/><input style={s.input} placeholder="Medidas"/><input style={s.input} placeholder="Dobras"/></Panel>)}</Grid>}
-function Photos(){return <Panel title="Fotos e comparação"><div style={s.workouts}>{['Semana 1','Semana 4','Semana 8'].map(w=><div style={s.upload}>{w}<p>Frente, costas, lado esquerdo e lado direito.</p></div>)}</div></Panel>}
-function Calendar(){return <Panel title="Calendário real"><div style={s.calendar}>{Array.from({length:31},(_,i)=><button style={i%3===0?s.dayOn:s.day}>{i+1}</button>)}</div></Panel>}
-function Cycle(){return <Grid><Panel title="Carga"><Bars/></Panel><Panel title="Volume Load"><Bars/></Panel><Panel title="Séries por músculo"><VolumeTable/></Panel></Grid>}
+function Dashboard(){ const store = loadAppStore(); return <Section title="Dashboard DG TEAM" subtitle="Resumo premium da consultoria."><Grid><Card title="Alunos salvos" value={String(store.students.length || 128)}/><Card title="Treinos hoje" value="24"/><Card title="Frequência semanal" value="76%"/><Card title="Volume Load" value="125.430kg"/></Grid><StoreStatusPanel students={store.students.length} workouts={Object.keys(store.workouts).length} offlineMode={false}/><div style={s.two}><ProgressChart/><Panel title="Alertas IA DG"><AiList /></Panel></div></Section> }
+function Students({onSelect}:{onSelect:(s:Student)=>void}){return <Section title="Alunos" subtitle="Gestão individual, treinos e evolução."><StudentCrudPanel/><Grid>{students.map(st=><div key={st.id} style={s.card} onClick={()=>onSelect(st)}><h3>{st.name}</h3><p>{st.goal}</p><p>{st.frequency}x por semana</p><div style={s.badge}>{st.priority.join(' + ')}</div></div>)}</Grid></Section>}
+function StudentProfile({student,active,setActive}:{student:Student;active:StudentTab;setActive:(t:StudentTab)=>void}){return <Section title={student.name} subtitle={`${student.goal} • ${student.phase} • ${student.frequency}x/semana`}><div style={s.tabs}>{studentTabs.map(t=><button key={t.id} style={active===t.id?s.tabActive:s.tab} onClick={()=>setActive(t.id)}>{t.label}</button>)}</div>{active==='overview' && <Overview student={student}/>} {active==='training' && <Training />} {active==='logbook' && <Logbook />} {active==='assessments' && <Assessments />} {active==='photos' && <Photos />} {active==='calendar' && <Calendar />} {active==='cycle' && <Cycle />} {active==='assistant' && <Assistant />} {active==='summary' && <Summary />}</Section>}
+function Overview({student}:{student:Student}){return <Grid><Card title="Peso" value={`${student.weight}kg`}/><Card title="Altura" value={`${student.height}cm`}/><Card title="Prioridade" value={student.priority.join(', ')}/><Panel title="Alertas">{student.alerts.map(a=><p key={a} style={s.item}>{a}</p>)}</Panel></Grid>}
+function Training(){return <div>{weeks.map(w=><Panel title={w} key={w}><div style={s.workouts}>{workouts.map(x=><div key={x} style={s.mini}><b>{x}</b><p>Exercícios, aquecimento, feeders, válidas, descanso e RIR.</p></div>)}</div><VolumeTable /></Panel>)}</div>}
+function Logbook(){return <Panel title="Modo Aula / Logbook Presencial"><WorkoutTimer/><p style={s.muted}>Puxa os treinos da aba Treinos. Registre somente cargas, reps, RIR, execução e observações rápidas.</p>{['Supino inclinado halteres','Remada articulada','Elevação lateral cabo'].map(ex=><div key={ex} style={s.log}><b>{ex}</b><div style={s.row}><input placeholder="Carga" style={s.input}/><input placeholder="Reps" style={s.input}/><input placeholder="RIR" style={s.input}/><button style={s.primary}>Salvar série</button></div><p style={s.ai}>IA DG: atingiu topo do range com boa execução? Sugestão: subir carga levemente.</p></div>)}<button style={s.save}>SALVAR TREINO</button></Panel>}
+function Assessments(){return <Grid>{['Semana 1','Semana 4','Semana 8'].map(w=><Panel key={w} title={w}><input style={s.input} placeholder="Peso"/><input style={s.input} placeholder="Medidas"/><input style={s.input} placeholder="Dobras"/></Panel>)}</Grid>}
+function Photos(){return <Panel title="Fotos e comparação"><div style={s.workouts}>{['Semana 1','Semana 4','Semana 8'].map(w=><div key={w} style={s.upload}>{w}<p>Frente, costas, lado esquerdo e lado direito.</p></div>)}</div></Panel>}
+function Calendar(){return <AttendanceCalendar/>}
+function Cycle(){return <Grid><ProgressChart/><Panel title="Volume Load"><Bars/></Panel><Panel title="Séries por músculo"><VolumeTable/></Panel></Grid>}
 function Assistant(){return <Panel title="Assistente DG Contextual"><AiList/><textarea style={{...s.input,minHeight:100}} placeholder="Pergunte: o que aumentar no próximo treino?"/></Panel>}
 function Summary(){return <Panel title="Resumo do ciclo"><p style={s.muted}>Carga inicial vs final, PRs, frequência, volume, avaliações e sugestões para o próximo ciclo.</p><button style={s.primary}>Exportar PDF premium</button></Panel>}
-
-function Library({group,setGroup}:{group:string;setGroup:(g:string)=>void}){const data=useMemo(()=>group==='Todos'?library:library.filter(e=>e.group===group),[group]);return <Section title="Biblioteca de Exercícios" subtitle={`${library.length}+ exercícios integrados DG Team.`}><select style={s.input} value={group} onChange={e=>setGroup(e.target.value)}><option>Todos</option>{groups.map(g=><option>{g}</option>)}</select><Grid>{data.slice(0,60).map(e=><div style={s.card}><h3>{e.name}</h3><p>{e.group} • {e.category}</p><p>Range: {e.range} • Descanso: {e.rest}</p><div style={s.badge}>{e.level}</div></div>)}</Grid></Section>}
-function Settings(){return <Section title="Configurações" subtitle="Tema, backups, exportações e segurança."><Grid><Card title="Backup" value="Ativo"/><Card title="PDF" value="Premium"/><Card title="Tema" value="DG Dark"/></Grid></Section>}
-
-function VolumeTable(){return <table style={s.table}><tbody>{['Peitoral','Costas','Quadríceps','Posteriores','Glúteos'].map((m,i)=><tr><td>{m}</td><td>{8+i*2} séries válidas</td></tr>)}</tbody></table>}
-function Bars(){return <div style={s.bars}>{[40,70,55,90,65,100,82,120].map(h=><span style={{...s.bar,height:h}} />)}</div>}
+function Library({group,setGroup}:{group:string;setGroup:(g:string)=>void}){const data=useMemo(()=>group==='Todos'?library:library.filter(e=>e.group===group),[group]);return <Section title="Biblioteca de Exercícios" subtitle={`${library.length}+ exercícios integrados DG Team.`}><select style={s.input} value={group} onChange={e=>setGroup(e.target.value)}><option>Todos</option>{groups.map(g=><option key={g}>{g}</option>)}</select><Grid>{data.slice(0,60).map(e=><div key={e.name} style={s.card}><h3>{e.name}</h3><p>{e.group} • {e.category}</p><p>Range: {e.range} • Descanso: {e.rest}</p><div style={s.badge}>{e.level}</div></div>)}</Grid></Section>}
+function Settings(){return <Section title="Configurações" subtitle="Tema, backups, exportações e segurança."><Grid><BackupPanel/><CloudStatus/><InstallAppCard/><SystemStatus/><AppAuditPanel results={runAppAudit()}/></Grid></Section>}
+function VolumeTable(){return <table style={s.table}><tbody>{['Peitoral','Costas','Quadríceps','Posteriores','Glúteos'].map((m,i)=><tr key={m}><td>{m}</td><td>{8+i*2} séries válidas</td></tr>)}</tbody></table>}
+function Bars(){return <div style={s.bars}>{[40,70,55,90,65,100,82,120].map((h,i)=><span key={i} style={{...s.bar,height:h}} />)}</div>}
 function AiList(){return <><p style={s.item}>Queda de performance em quadríceps: avaliar descanso e volume.</p><p style={s.item}>Peitoral bateu topo do range: sugerir microloading.</p><p style={s.item}>Músculo prioritário com volume adequado.</p></>}
 function Section({title,subtitle,children}:any){return <><h1 style={s.title}>{title}</h1><p style={s.subtitle}>{subtitle}</p>{children}</>}
 function Grid({children}:any){return <div style={s.grid}>{children}</div>}
 function Card({title,value}:{title:string,value:string}){return <div style={s.card}><p style={s.muted}>{title}</p><h2 style={s.value}>{value}</h2></div>}
 function Panel({title,children}:any){return <div style={s.panel}><h3>{title}</h3>{children}</div>}
 function labelMain(t:MainTab){return t==='dashboard'?'Dashboard':t==='students'?'Alunos':t==='library'?'Biblioteca de Exercícios':'Configurações'}
-
-const s:any = {
-  app:{display:'flex',minHeight:'100vh',background:bg,color:'#fff',fontFamily:'Arial, sans-serif'}, sidebar:{width:280,background:'linear-gradient(180deg,#090909,#120606)',borderRight:`1px solid ${line}`,padding:24,position:'sticky',top:0,height:'100vh'}, logo:{fontSize:34,fontWeight:900,color:red,letterSpacing:2,marginBottom:20}, gorilla:{height:120,border:`1px solid ${line}`,borderRadius:22,display:'grid',placeItems:'center',color:'#661010',marginBottom:28,boxShadow:'0 0 35px rgba(224,22,22,.18)'}, nav:{background:'#111',color:'#ddd',border:`1px solid ${line}`,padding:'14px 16px',borderRadius:14,display:'block',width:'100%',textAlign:'left',marginBottom:12,cursor:'pointer'}, navActive:{background:'#1b0909',color:'#fff',border:`1px solid ${red}`,padding:'14px 16px',borderRadius:14,display:'block',width:'100%',textAlign:'left',marginBottom:12,cursor:'pointer',boxShadow:'0 0 20px rgba(224,22,22,.25)'}, main:{flex:1,padding:32,overflow:'auto'}, title:{fontSize:42,marginBottom:8}, subtitle:{color:'#9a9a9a',marginBottom:28}, grid:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(230px,1fr))',gap:18,marginBottom:22}, card:{background:panel,border:`1px solid ${line}`,borderRadius:20,padding:22,boxShadow:'0 0 28px rgba(224,22,22,.10)',cursor:'pointer'}, panel:{background:panel,border:`1px solid ${line}`,borderRadius:22,padding:22,marginBottom:22,boxShadow:'0 0 28px rgba(224,22,22,.08)'}, value:{fontSize:32,color:red,marginTop:8}, muted:{color:'#aaa'}, primary:{background:red,color:'#fff',border:0,borderRadius:12,padding:'12px 16px',cursor:'pointer',fontWeight:700}, save:{background:red,color:'#fff',border:0,borderRadius:16,padding:'18px 22px',cursor:'pointer',fontWeight:900,width:'100%',marginTop:18}, two:{display:'grid',gridTemplateColumns:'1.4fr 1fr',gap:18}, bars:{display:'flex',alignItems:'end',gap:10,height:150,marginTop:20}, bar:{width:24,background:'linear-gradient(180deg,#ff3030,#640808)',borderRadius:8,display:'block'}, item:{background:'#180909',border:`1px solid ${line}`,padding:12,borderRadius:12,margin:'10px 0',color:'#ddd'}, badge:{display:'inline-block',marginTop:12,padding:'8px 10px',borderRadius:99,background:'#230808',color:'#ffb0b0',border:`1px solid ${line}`}, tabs:{display:'flex',gap:10,flexWrap:'wrap',marginBottom:20}, tab:{background:'#111',color:'#bbb',border:`1px solid ${line}`,padding:'10px 12px',borderRadius:99,cursor:'pointer'}, tabActive:{background:red,color:'#fff',border:`1px solid ${red}`,padding:'10px 12px',borderRadius:99,cursor:'pointer'}, workouts:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12,marginTop:14}, mini:{background:'#0b0b0b',border:`1px solid ${line}`,borderRadius:14,padding:14}, table:{width:'100%',marginTop:16,borderCollapse:'collapse'}, log:{background:'#0b0b0b',border:`1px solid ${line}`,padding:16,borderRadius:16,marginTop:14}, row:{display:'flex',gap:10,flexWrap:'wrap',marginTop:12}, input:{background:'#090909',color:'#fff',border:`1px solid ${line}`,borderRadius:12,padding:'12px 14px',margin:'6px 6px 6px 0'}, ai:{color:'#ffb0b0',marginTop:10}, upload:{background:'#0b0b0b',border:`1px dashed ${red}`,borderRadius:16,padding:22,color:'#ccc'}, calendar:{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:10}, day:{background:'#111',color:'#fff',border:`1px solid ${line}`,borderRadius:12,padding:16}, dayOn:{background:'#240909',color:'#fff',border:`1px solid ${red}`,borderRadius:12,padding:16}
-};
+const s:any = { app:{display:'flex',minHeight:'100vh',background:bg,color:'#fff',fontFamily:'Arial, sans-serif'}, sidebar:{width:280,background:'linear-gradient(180deg,#090909,#120606)',borderRight:`1px solid ${line}`,padding:24,position:'sticky',top:0,height:'100vh'}, logo:{fontSize:34,fontWeight:900,color:red,letterSpacing:2,marginBottom:20}, gorilla:{height:120,border:`1px solid ${line}`,borderRadius:22,display:'grid',placeItems:'center',color:'#661010',marginBottom:28,boxShadow:'0 0 35px rgba(224,22,22,.18)'}, nav:{background:'#111',color:'#ddd',border:`1px solid ${line}`,padding:'14px 16px',borderRadius:14,display:'block',width:'100%',textAlign:'left',marginBottom:12,cursor:'pointer'}, navActive:{background:'#1b0909',color:'#fff',border:`1px solid ${red}`,padding:'14px 16px',borderRadius:14,display:'block',width:'100%',textAlign:'left',marginBottom:12,cursor:'pointer',boxShadow:'0 0 20px rgba(224,22,22,.25)'}, main:{flex:1,padding:32,overflow:'auto'}, title:{fontSize:42,marginBottom:8}, subtitle:{color:'#9a9a9a',marginBottom:28}, grid:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:18,marginBottom:22}, card:{background:panel,border:`1px solid ${line}`,borderRadius:20,padding:22,boxShadow:'0 0 28px rgba(224,22,22,.10)',cursor:'pointer'}, panel:{background:panel,border:`1px solid ${line}`,borderRadius:22,padding:22,marginBottom:22,boxShadow:'0 0 28px rgba(224,22,22,.08)'}, value:{fontSize:32,color:red,marginTop:8}, muted:{color:'#aaa',marginTop:12}, primary:{background:red,color:'#fff',border:0,borderRadius:12,padding:'12px 16px',cursor:'pointer',fontWeight:700}, save:{background:red,color:'#fff',border:0,borderRadius:16,padding:'18px 22px',cursor:'pointer',fontWeight:900,width:'100%',marginTop:18}, two:{display:'grid',gridTemplateColumns:'1.4fr 1fr',gap:18}, bars:{display:'flex',alignItems:'end',gap:10,height:150,marginTop:20}, bar:{width:24,background:'linear-gradient(180deg,#ff3030,#640808)',borderRadius:8,display:'block'}, item:{background:'#180909',border:`1px solid ${line}`,padding:12,borderRadius:12,margin:'10px 0',color:'#ddd'}, badge:{display:'inline-block',marginTop:12,padding:'8px 10px',borderRadius:99,background:'#230808',color:'#ffb0b0',border:`1px solid ${line}`}, tabs:{display:'flex',gap:10,flexWrap:'wrap',marginBottom:20}, tab:{background:'#111',color:'#bbb',border:`1px solid ${line}`,padding:'10px 12px',borderRadius:99,cursor:'pointer'}, tabActive:{background:red,color:'#fff',border:`1px solid ${red}`,padding:'10px 12px',borderRadius:99,cursor:'pointer'}, workouts:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12,marginTop:14}, mini:{background:'#0b0b0b',border:`1px solid ${line}`,borderRadius:14,padding:14}, table:{width:'100%',marginTop:16,borderCollapse:'collapse'}, log:{background:'#0b0b0b',border:`1px solid ${line}`,padding:16,borderRadius:16,marginTop:14}, row:{display:'flex',gap:10,flexWrap:'wrap',marginTop:12}, input:{background:'#090909',color:'#fff',border:`1px solid ${line}`,borderRadius:12,padding:'12px 14px',margin:'6px 6px 6px 0'}, ai:{color:'#ffb0b0',marginTop:10}, upload:{background:'#0b0b0b',border:`1px dashed ${red}`,borderRadius:16,padding:22,color:'#ccc'} };
