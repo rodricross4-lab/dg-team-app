@@ -1,3 +1,5 @@
+import { createClient } from '@supabase/supabase-js';
+
 export const supabaseConfig = {
   url: import.meta.env.VITE_SUPABASE_URL || '',
   anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || ''
@@ -21,6 +23,43 @@ export function getSupabaseSetupInstructions() {
     'Adicionar VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY nas variáveis do Netlify',
     'Redeployar o app'
   ];
+}
+
+export const supabase = isSupabaseConfigured()
+  ? createClient(supabaseConfig.url, supabaseConfig.anonKey)
+  : null;
+
+export async function testSupabaseConnection() {
+  if (!supabase) {
+    return {
+      ok: false,
+      message: 'Supabase não configurado.'
+    };
+  }
+
+  try {
+    const { error } = await supabase
+      .from('students')
+      .select('id')
+      .limit(1);
+
+    if (error) {
+      return {
+        ok: false,
+        message: error.message
+      };
+    }
+
+    return {
+      ok: true,
+      message: 'Conexão Supabase funcionando.'
+    };
+  } catch {
+    return {
+      ok: false,
+      message: 'Erro ao conectar com Supabase.'
+    };
+  }
 }
 
 export async function syncPlaceholder() {
