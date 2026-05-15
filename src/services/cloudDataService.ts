@@ -37,9 +37,9 @@ async function selectByStudent<T = SupabaseRow>(table: string, studentId: string
   return { ok: true, message: `${table} carregado.`, data: (data || []) as T[] };
 }
 
-async function upsertRows<T extends SupabaseRow = SupabaseRow>(table: string, rows: T[]): Promise<CloudResult<T[]>> {
-  if (!rows.length) return emptyRows<T>('Nenhum registro informado para sincronizar.');
-  if (!isSupabaseConfigured() || !supabase) return disabled<T[]>();
+async function upsertRows(table: string, rows: SupabaseRow[]): Promise<CloudResult<SupabaseRow[]>> {
+  if (!rows.length) return emptyRows<SupabaseRow>('Nenhum registro informado para sincronizar.');
+  if (!isSupabaseConfigured() || !supabase) return disabled<SupabaseRow[]>();
 
   const { data, error } = await supabase
     .from(table)
@@ -47,7 +47,7 @@ async function upsertRows<T extends SupabaseRow = SupabaseRow>(table: string, ro
     .select('*');
 
   if (error) return { ok: false, message: error.message, data: [] };
-  return { ok: true, message: `${table} sincronizado.`, data: (data || []) as T[] };
+  return { ok: true, message: `${table} sincronizado.`, data: (data || []) as SupabaseRow[] };
 }
 
 export const cloudDataService = {
