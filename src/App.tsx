@@ -17,6 +17,7 @@ import LoginScreen from './components/LoginScreen';
 import DailyCoachDashboard from './components/DailyCoachDashboard';
 import RealtimeStatusPanel from './components/RealtimeStatusPanel';
 import CloudStudentsPanel from './components/CloudStudentsPanel';
+import StabilityCheckpoint from './components/StabilityCheckpoint';
 import { getCurrentUser, signOutCoach } from './services/authService';
 import { loadAppStore } from './store/appStore';
 import { runAppAudit } from './utils/appAudit';
@@ -69,7 +70,7 @@ function Cycle(){return <Grid><ProgressChart/><Panel title="Volume Load"><Bars/>
 function Assistant(){return <Panel title="Assistente DG Contextual"><AiList/><textarea style={{...s.input,minHeight:100}} placeholder="Pergunte: o que aumentar no próximo treino?"/></Panel>}
 function Summary(){return <Panel title="Resumo do ciclo"><p style={s.muted}>Carga inicial vs final, PRs, frequência, volume, avaliações e sugestões para o próximo ciclo.</p><button style={s.primary}>Exportar PDF premium</button></Panel>}
 function Library({group,setGroup}:{group:string;setGroup:(g:string)=>void}){const data=useMemo(()=>group==='Todos'?library:library.filter(e=>e.group===group),[group]);return <Section title="Biblioteca de Exercícios" subtitle={`${library.length}+ exercícios integrados DG Team.`}><select style={s.input} value={group} onChange={e=>setGroup(e.target.value)}><option>Todos</option>{groups.map(g=><option key={g}>{g}</option>)}</select><Grid>{data.slice(0,60).map(e=><div key={e.name} style={s.card}><h3>{e.name}</h3><p>{e.group} • {e.category}</p><p>Range: {e.range} • Descanso: {e.rest}</p><div style={s.badge}>{e.level}</div></div>)}</Grid></Section>}
-function Settings(){return <Section title="Configurações" subtitle="Tema, backups, exportações e segurança."><Grid><BackupPanel/><CloudStatus/><InstallAppCard/><SystemStatus/><AppAuditPanel results={runAppAudit()}/></Grid></Section>}
+function Settings(){return <Section title="Configurações" subtitle="Tema, backups, exportações e segurança."><StabilityCheckpoint/><Grid><BackupPanel/><CloudStatus/><InstallAppCard/><SystemStatus/><AppAuditPanel results={runAppAudit()}/></Grid></Section>}
 function VolumeTable(){return <table style={s.table}><tbody>{['Peitoral','Costas','Quadríceps','Posteriores','Glúteos'].map((m,i)=><tr key={m}><td>{m}</td><td>{8+i*2} séries válidas</td></tr>)}</tbody></table>}
 function Bars(){return <div style={s.bars}>{[40,70,55,90,65,100,82,120].map((h,i)=><span key={i} style={{...s.bar,height:h}} />)}</div>}
 function AiList(){return <><p style={s.item}>Queda de performance em quadríceps: avaliar descanso e volume.</p><p style={s.item}>Peitoral bateu topo do range: sugerir microloading.</p><p style={s.item}>Músculo prioritário com volume adequado.</p></>}
