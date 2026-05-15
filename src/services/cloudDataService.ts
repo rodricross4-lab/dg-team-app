@@ -1,10 +1,12 @@
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
-type CloudResult<T = unknown> = {
+export type CloudResult<T = unknown> = {
   ok: boolean;
   message: string;
   data?: T;
 };
+
+type SupabaseRow = Record<string, unknown>;
 
 function disabled<T = unknown>(): CloudResult<T> {
   return {
@@ -13,7 +15,16 @@ function disabled<T = unknown>(): CloudResult<T> {
   };
 }
 
-async function selectByStudent<T>(table: string, studentId: string): Promise<CloudResult<T[]>> {
+function emptyRows<T = unknown>(message: string): CloudResult<T[]> {
+  return {
+    ok: false,
+    message,
+    data: []
+  };
+}
+
+async function selectByStudent<T = SupabaseRow>(table: string, studentId: string): Promise<CloudResult<T[]>> {
+  if (!studentId) return emptyRows<T>('Aluno não informado para consulta cloud.');
   if (!isSupabaseConfigured() || !supabase) return disabled<T[]>();
 
   const { data, error } = await supabase
@@ -22,50 +33,63 @@ async function selectByStudent<T>(table: string, studentId: string): Promise<Clo
     .eq('student_id', studentId)
     .order('created_at', { ascending: false });
 
-  if (error) return { ok: false, message: error.message };
-  return { ok: true, message: `${table} carregado.`, data: data as T[] };
+  if (error) return { ok: false, message: error.message, data: [] };
+  return { ok: true, message: `${table} carregado.`, data: (data || []) as T[] };
 }
 
-async function upsertRows<T>(table: string, rows: T[]): Promise<CloudResult<T[]>> {
+async function upsertRows<T extends SupabaseRow = SupabaseRow>(table: string, rows: T[]): Promise<CloudResult<T[]>> {
+  if (!rows.length) return emptyRows<T>('Nenhum registro informado para sincronizar.');
   if (!isSupabaseConfigured() || !supabase) return disabled<T[]>();
 
   const { data, error } = await supabase
     .from(table)
-    .upsert(rows as any)
+    .upsert(rows)
     .select('*');
 
-  if (error) return { ok: false, message: error.message };
-  return { ok: true, message: `${table} sincronizado.`, data: data as T[] };
+  if (error) return { ok: false, message: error.message, data: [] };
+  return { ok: true, message: `${table} sincronizado.`, data: (data || []) as T[] };
 }
 
 export const cloudDataService = {
-  getStudents: async () => {
-    if (!isSupabaseConfigured() || !supabase) return disabled();
-    const { data, error } = await supabase.from('students').select('*').order('created_at', { ascending: false });
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, message: 'Alunos carregados.', data };
+  getStudents: async (): Promise<CloudResult<SupabaseRow[]>> => {
+    if (!isSupabaseConfigured() || !supabase) return disabled<SupabaseRow[]>();
+
+    const { data, error } = await supabase
+      .from('students')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) return { ok: false, message: error.message, data: [] };
+    return { ok: true, message: 'Alunos carregados.', data: (data || []) as SupabaseRow[] };
   },
 
-  saveStudents: (rows: unknown[]) => upsertRows('students', rows),
+  saveStudents: (rows: SupabaseRow[]) => upsertRows('students', rows),
   getWorkouts: (studentId: string) => selectByStudent('workouts', studentId),
-  saveWorkouts: (rows: unknown[]) => upsertRows('workouts', rows),
+  saveWorkouts: (rows: SupabaseRow[]) => upsertRows('workouts', rows),
   getWorkoutSessions: (studentId: string) => selectByStudent('workout_sessions', studentId),
-  saveWorkoutSessions: (rows: unknown[]) => upsertRows('workout_sessions', rows),
+  saveWorkoutSessions: (rows: SupabaseRow[]) => upsertRows('workout_sessions', rows),
   getLogbook: (studentId: string) => selectByStudent('logbook_entries', studentId),
-  saveLogbook: (rows: unknown[]) => upsertRows('logbook_entries', rows),
+  saveLogbook: (rows: SupabaseRow[]) => upsertRows('logbook_entries', rows),
   getAssessments: (studentId: string) => selectByStudent('assessments', studentId),
-  saveAssessments: (rows: unknown[]) => upsertRows('assessments', rows),
+  saveAssessments: (rows: SupabaseRow[]) => upsertRows('assessments', rows),
   getCheckins: (studentId: string) => selectByStudent('checkins', studentId),
-  saveCheckins: (rows: unknown[]) => upsertRows('checkins', rows),
+  saveCheckins: (rows: SupabaseRow[]) => upsertRows('checkins', rows),
   getTimeline: (studentId: string) => selectByStudent('timeline_events', studentId),
-  saveTimeline: (rows: unknown[]) => upsertRows('timeline_events', rows),
+  saveTimeline: (rows: SupabaseRow[]) => upsertRows('timeline_events', rows),
   getInsights: (studentId: string) => selectByStudent('ai_insights', studentId),
-  saveInsights: (rows: unknown[]) => upsertRows('ai_insights', rows),
-  getNotifications: async () => {
-    if (!isSupabaseConfigured() || !supabase) return disabled();
-    const { data, error } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
-    if (error) return { ok: false, message: error.message };
-    return { ok: true, message: 'Notificações carregadas.', data };
+  saveInsights: (rows: SupabaseRow[]) => upsertRows('ai_insights', rows),
+
+  getNotifications: async (): Promise<CloudResult<SupabaseRow[]>> => {
+    if (!isSupabaseConfigured() || !supabase) return disabled<SupabaseRow[]>();
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) return { ok: false, message: error.message, data: [] };
+    return { ok: true, message: 'Notificações carregadas.', data: (data || []) as SupabaseRow[] };
   },
-  saveNotifications: (rows: unknown[]) => upsertRows('notifications', rows)
+
+  saveNotifications: (rows: SupabaseRow[]) => upsertRows('notifications', rows)
 };
