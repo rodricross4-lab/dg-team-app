@@ -35,7 +35,8 @@ export function subscribeToCoachRealtime(config: RealtimeSubscriptionConfig = {}
     };
   }
 
-  const channel = supabase.channel('dg-team-coach-realtime');
+  const client = supabase;
+  const channel = client.channel('dg-team-coach-realtime');
 
   Object.keys(tableToEvent).forEach((table) => {
     channel.on(
@@ -86,7 +87,7 @@ export function subscribeToCoachRealtime(config: RealtimeSubscriptionConfig = {}
     ok: true,
     message: 'Realtime DG TEAM ativo.',
     unsubscribe: () => {
-      void supabase.removeChannel(channel);
+      void client.removeChannel(channel);
     }
   };
 }
