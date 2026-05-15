@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { cloudDataService } from '../services/cloudDataService';
 
 export function useCloudStudentProfile(studentId?: string) {
@@ -12,35 +12,55 @@ export function useCloudStudentProfile(studentId?: string) {
   const [timeline, setTimeline] = useState<unknown[]>([]);
   const [insights, setInsights] = useState<unknown[]>([]);
 
-  async function loadProfile() {
-    if (!studentId) return;
+  const resetProfile = useCallback(() => {
+    setWorkouts([]);
+    setSessions([]);
+    setLogbook([]);
+    setAssessments([]);
+    setCheckins([]);
+    setTimeline([]);
+    setInsights([]);
+  }, []);
+
+  const loadProfile = useCallback(async () => {
+    if (!studentId) {
+      resetProfile();
+      setMessage('Aluno não selecionado para carregar perfil cloud.');
+      return;
+    }
+
     setLoading(true);
 
-    const [workoutResult, sessionResult, logbookResult, assessmentResult, checkinResult, timelineResult, insightResult] = await Promise.all([
-      cloudDataService.getWorkouts(studentId),
-      cloudDataService.getWorkoutSessions(studentId),
-      cloudDataService.getLogbook(studentId),
-      cloudDataService.getAssessments(studentId),
-      cloudDataService.getCheckins(studentId),
-      cloudDataService.getTimeline(studentId),
-      cloudDataService.getInsights(studentId)
-    ]);
+    try {
+      const [workoutResult, sessionResult, logbookResult, assessmentResult, checkinResult, timelineResult, insightResult] = await Promise.all([
+        cloudDataService.getWorkouts(studentId),
+        cloudDataService.getWorkoutSessions(studentId),
+        cloudDataService.getLogbook(studentId),
+        cloudDataService.getAssessments(studentId),
+        cloudDataService.getCheckins(studentId),
+        cloudDataService.getTimeline(studentId),
+        cloudDataService.getInsights(studentId)
+      ]);
 
-    setLoading(false);
-    setMessage('Perfil cloud carregado.');
+      if (workoutResult.ok && Array.isArray(workoutResult.data)) setWorkouts(workoutResult.data);
+      if (sessionResult.ok && Array.isArray(sessionResult.data)) setSessions(sessionResult.data);
+      if (logbookResult.ok && Array.isArray(logbookResult.data)) setLogbook(logbookResult.data);
+      if (assessmentResult.ok && Array.isArray(assessmentResult.data)) setAssessments(assessmentResult.data);
+      if (checkinResult.ok && Array.isArray(checkinResult.data)) setCheckins(checkinResult.data);
+      if (timelineResult.ok && Array.isArray(timelineResult.data)) setTimeline(timelineResult.data);
+      if (insightResult.ok && Array.isArray(insightResult.data)) setInsights(insightResult.data);
 
-    if (workoutResult.ok && Array.isArray(workoutResult.data)) setWorkouts(workoutResult.data);
-    if (sessionResult.ok && Array.isArray(sessionResult.data)) setSessions(sessionResult.data);
-    if (logbookResult.ok && Array.isArray(logbookResult.data)) setLogbook(logbookResult.data);
-    if (assessmentResult.ok && Array.isArray(assessmentResult.data)) setAssessments(assessmentResult.data);
-    if (checkinResult.ok && Array.isArray(checkinResult.data)) setCheckins(checkinResult.data);
-    if (timelineResult.ok && Array.isArray(timelineResult.data)) setTimeline(timelineResult.data);
-    if (insightResult.ok && Array.isArray(insightResult.data)) setInsights(insightResult.data);
-  }
+      setMessage('Perfil cloud carregado.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro inesperado ao carregar perfil cloud.');
+    } finally {
+      setLoading(false);
+    }
+  }, [resetProfile, studentId]);
 
   useEffect(() => {
-    loadProfile();
-  }, [studentId]);
+    void loadProfile();
+  }, [loadProfile]);
 
   return {
     loading,
