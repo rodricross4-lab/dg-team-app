@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { cloudDataService } from '../services/cloudDataService';
 
-type CloudStudent = {
+export type CloudStudent = {
   id: string;
   name: string;
   email?: string;
@@ -18,30 +18,53 @@ export function useCloudStudents() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('Cloud students não iniciado.');
 
-  async function loadStudents() {
+  const loadStudents = useCallback(async () => {
     setLoading(true);
-    const result = await cloudDataService.getStudents();
-    setLoading(false);
-    setMessage(result.message);
 
-    if (result.ok && Array.isArray(result.data)) {
-      setStudents(result.data as CloudStudent[]);
+    try {
+      const result = await cloudDataService.getStudents();
+      setMessage(result.message);
+
+      if (result.ok && Array.isArray(result.data)) {
+        setStudents(result.data as CloudStudent[]);
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro inesperado ao carregar alunos cloud.');
+    } finally {
+      setLoading(false);
     }
-  }
+  }, []);
 
-  async function saveStudents(rows: CloudStudent[]) {
+  const saveStudents = useCallback(async (rows: CloudStudent[]) => {
+    if (!rows.length) {
+      const result = { ok: false, message: 'Nenhum aluno informado para salvar.' };
+      setMessage(result.message);
+      return result;
+    }
+
     setLoading(true);
-    const result = await cloudDataService.saveStudents(rows);
-    setLoading(false);
-    setMessage(result.message);
 
-    if (result.ok) await loadStudents();
-    return result;
-  }
+    try {
+      const result = await cloudDataService.saveStudents(rows);
+      setMessage(result.message);
+
+      if (result.ok) await loadStudents();
+      return result;
+    } catch (error) {
+      const result = {
+        ok: false,
+        message: error instanceof Error ? error.message : 'Erro inesperado ao salvar alunos cloud.'
+      };
+      setMessage(result.message);
+      return result;
+    } finally {
+      setLoading(false);
+    }
+  }, [loadStudents]);
 
   useEffect(() => {
-    loadStudents();
-  }, []);
+    void loadStudents();
+  }, [loadStudents]);
 
   return {
     students,
