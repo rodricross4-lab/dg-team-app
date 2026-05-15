@@ -1,7 +1,7 @@
 import { useCoachRealtime } from '../hooks/useCoachRealtime';
 
 export default function RealtimeStatusPanel() {
-  const realtime = useCoachRealtime();
+  const { status, events, orchestrated, latest } = useCoachRealtime();
 
   return (
     <div style={panel}>
@@ -11,19 +11,17 @@ export default function RealtimeStatusPanel() {
           <p style={subtitle}>Monitoramento vivo do sistema operacional.</p>
         </div>
 
-        <div style={badge}>
-          {realtime.status}
-        </div>
+        <div style={badge}>{status}</div>
       </div>
 
       <div style={hero}>
         <strong style={{ color: '#fff' }}>Último evento orquestrado</strong>
 
-        {realtime.latest ? (
+        {latest ? (
           <>
-            <p style={text}>Evento: {realtime.latest.eventType}</p>
-            <p style={text}>Prioridade: {realtime.latest.priority}</p>
-            <p style={text}>{realtime.latest.summary}</p>
+            <p style={text}>Evento: {latest.eventType}</p>
+            <p style={text}>Prioridade: {latest.priority}</p>
+            <p style={text}>{latest.summary}</p>
           </>
         ) : (
           <p style={text}>Aguardando eventos realtime...</p>
@@ -32,12 +30,12 @@ export default function RealtimeStatusPanel() {
 
       <div style={stats}>
         <div style={statCard}>
-          <strong>{realtime.events.length}</strong>
+          <strong>{events.length}</strong>
           <span>Eventos</span>
         </div>
 
         <div style={statCard}>
-          <strong>{realtime.orchestrated.length}</strong>
+          <strong>{orchestrated.length}</strong>
           <span>Orquestrados</span>
         </div>
       </div>
