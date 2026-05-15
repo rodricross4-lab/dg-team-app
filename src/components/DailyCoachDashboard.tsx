@@ -4,18 +4,21 @@ import NotificationCenter from './NotificationCenter';
 import RetentionRiskPanel from './RetentionRiskPanel';
 import TimelinePanelDG from './TimelinePanelDG';
 import AutomationCenter from './AutomationCenter';
+import type { CoachBriefingInput } from '../engines/autoCoachBriefingEngine';
+import type { CoachCommandInput } from '../engines/coachCommandCenterEngine';
+import type { TimelineEvent } from '../engines/autoTimelineEngine';
 
 export default function DailyCoachDashboard() {
   const studentId = 1;
   const studentName = 'Aluno DG';
 
-  const briefingInput = {
+  const briefingInput: CoachBriefingInput = {
     studentName,
     mainGoal: 'Hipertrofia com progressão sustentável',
     notifications: {
       studentId,
       studentName,
-      retentionLevel: 'medium' as const,
+      retentionLevel: 'medium',
       checkinLate: true,
       performanceDrop: false,
       newPr: true,
@@ -27,22 +30,22 @@ export default function DailyCoachDashboard() {
       attendanceRate: 72,
       daysSinceLastWorkout: 3,
       daysSinceLastCheckin: 8,
-      performanceTrend: 'stable' as const,
-      mood: 'ok' as const,
-      recovery: 'ok' as const
+      performanceTrend: 'stable',
+      mood: 'ok',
+      recovery: 'ok'
     },
     checkin: {
       studentId,
       studentName,
       daysSinceLastCheckin: 8,
       attendanceRate: 72,
-      performanceTrend: 'stable' as const,
-      recovery: 'ok' as const,
-      mood: 'ok' as const
+      performanceTrend: 'stable',
+      recovery: 'ok',
+      mood: 'ok'
     }
   };
 
-  const commandInput = {
+  const commandInput: CoachCommandInput = {
     automationContext: {
       studentId,
       studentName,
@@ -57,9 +60,9 @@ export default function DailyCoachDashboard() {
       muscleGroup: 'Quadríceps',
       weeklyValidSets: 8,
       executionQuality: 82,
-      performanceTrend: 'stable' as const,
-      recovery: 'ok' as const,
-      phase: 'bulking' as const
+      performanceTrend: 'stable',
+      recovery: 'ok',
+      phase: 'bulking'
     },
     systemHealth: {
       hasAuth: true,
@@ -68,35 +71,35 @@ export default function DailyCoachDashboard() {
       hasWorkouts: true,
       hasLogbookEntries: true,
       hasAssessments: true,
-      buildStatus: 'unknown' as const
+      buildStatus: 'unknown'
     },
-    lastTrigger: 'logbook_updated' as const
+    lastTrigger: 'logbook_updated'
   };
 
-  const timelineEvents = [
+  const timelineEvents: TimelineEvent[] = [
     {
       id: 'event-1',
-      type: 'workout' as const,
+      type: 'workout',
       title: 'Treino registrado',
       description: 'Logbook atualizado com séries válidas e execução.',
       date: new Date().toISOString(),
-      priority: 'medium' as const
+      priority: 'medium'
     },
     {
       id: 'event-2',
-      type: 'pr' as const,
+      type: 'pr',
       title: 'Novo PR detectado',
       description: 'Aluno apresentou melhor série-volume no ciclo.',
       date: new Date(Date.now() - 86400000).toISOString(),
-      priority: 'low' as const
+      priority: 'low'
     },
     {
       id: 'event-3',
-      type: 'assessment' as const,
+      type: 'assessment',
       title: 'Avaliação pendente',
       description: 'Atualizar medidas e fotos para fechar o bloco.',
       date: new Date(Date.now() - 172800000).toISOString(),
-      priority: 'medium' as const
+      priority: 'medium'
     }
   ];
 
