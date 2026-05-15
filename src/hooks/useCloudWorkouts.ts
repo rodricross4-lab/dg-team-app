@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { cloudDataService } from '../services/cloudDataService';
 
-type CloudWorkout = {
+export type CloudWorkout = {
   id?: string;
   student_id: string;
   week: number;
@@ -16,31 +16,59 @@ export function useCloudWorkouts(studentId?: string) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('Cloud workouts não iniciado.');
 
-  async function loadWorkouts() {
-    if (!studentId) return;
-    setLoading(true);
-    const result = await cloudDataService.getWorkouts(studentId);
-    setLoading(false);
-    setMessage(result.message);
-
-    if (result.ok && Array.isArray(result.data)) {
-      setWorkouts(result.data as CloudWorkout[]);
+  const loadWorkouts = useCallback(async () => {
+    if (!studentId) {
+      setWorkouts([]);
+      setMessage('Aluno não selecionado para carregar treinos cloud.');
+      return;
     }
-  }
 
-  async function saveWorkout(workout: CloudWorkout) {
     setLoading(true);
-    const result = await cloudDataService.saveWorkouts([{ ...workout, student_id: studentId || workout.student_id }]);
-    setLoading(false);
-    setMessage(result.message);
+    try {
+      const result = await cloudDataService.getWorkouts(studentId);
+      setMessage(result.message);
 
-    if (result.ok) await loadWorkouts();
-    return result;
-  }
+      if (result.ok && Array.isArray(result.data)) {
+        setWorkouts(result.data as CloudWorkout[]);
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro inesperado ao carregar treinos cloud.');
+    } finally {
+      setLoading(false);
+    }
+  }, [studentId]);
+
+  const saveWorkout = useCallback(async (workout: CloudWorkout) => {
+    const targetStudentId = studentId || workout.student_id;
+
+    if (!targetStudentId) {
+      const result = { ok: false, message: 'Aluno não selecionado para salvar treino cloud.' };
+      setMessage(result.message);
+      return result;
+    }
+
+    setLoading(true);
+    try {
+      const result = await cloudDataService.saveWorkouts([{ ...workout, student_id: targetStudentId }]);
+      setMessage(result.message);
+
+      if (result.ok) await loadWorkouts();
+      return result;
+    } catch (error) {
+      const result = {
+        ok: false,
+        message: error instanceof Error ? error.message : 'Erro inesperado ao salvar treino cloud.'
+      };
+      setMessage(result.message);
+      return result;
+    } finally {
+      setLoading(false);
+    }
+  }, [loadWorkouts, studentId]);
 
   useEffect(() => {
-    loadWorkouts();
-  }, [studentId]);
+    void loadWorkouts();
+  }, [loadWorkouts]);
 
   return {
     workouts,
