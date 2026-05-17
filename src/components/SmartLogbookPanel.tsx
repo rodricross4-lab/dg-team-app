@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { getStudentWorkouts } from '../store/operationalStore';
+import { calculateEffectiveVolume, calculateVolumeLoad, type LogbookSet } from '../utils/smartLogbookEngine';
 import WorkoutTimer from './WorkoutTimer';
 
 type Props = { studentId: number };
@@ -25,6 +26,12 @@ function loadLogs(studentId: number): SetLog[] {
 
 function saveLogs(studentId: number, logs: SetLog[]) {
   localStorage.setItem(`${LOG_KEY}-${studentId}`, JSON.stringify(logs));
+}
+
+function toQuality(execution: string): LogbookSet['quality'] {
+  if (execution === 'excelente') return 'high';
+  if (execution === 'ruim') return 'low';
+  return 'ok';
 }
 
 export default function SmartLogbookPanel({ studentId }: Props) {
@@ -62,11 +69,20 @@ export default function SmartLogbookPanel({ studentId }: Props) {
     setSavedAt(now);
   }
 
-  const volumeLoad = logs.reduce((total, log) => {
-    const load = Number(log.load) || 0;
-    const reps = Number(log.reps) || 0;
-    return total + load * reps;
-  }, 0);
+  const validSets: LogbookSet[] = logs
+    .map((log) => ({
+      kind: 'working' as const,
+      load: Number(log.load) || 0,
+      reps: Number(log.reps) || 0,
+      minReps: 6,
+      maxReps: 12,
+      rir: Number(log.rir),
+      quality: toQuality(log.execution)
+    }))
+    .filter((set) => set.load > 0 || set.reps > 0);
+
+  const effectiveVolume = calculateEffectiveVolume(validSets);
+  const volumeLoad = calculateVolumeLoad(validSets);
 
   return (
     <div style={panel}>
@@ -77,9 +93,14 @@ export default function SmartLogbookPanel({ studentId }: Props) {
 
       <WorkoutTimer />
 
+      <div style={ruleBox}>
+        Regra DG TEAM: aquecimento e feeder não contam volume. Apenas séries válidas entram no volume efetivo e na decisão de progressão.
+      </div>
+
       <div style={statusBox}>
         <span>Treinos disponíveis: <strong>{workouts.length}</strong></span>
-        <span>Volume load registrado: <strong>{volumeLoad}kg</strong></span>
+        <span>Séries válidas registradas: <strong>{effectiveVolume}</strong></span>
+        <span>Volume load válido: <strong>{volumeLoad}kg</strong></span>
         <span>Último salvamento: <strong>{savedAt || 'autosave ativo'}</strong></span>
       </div>
 
@@ -136,6 +157,7 @@ export default function SmartLogbookPanel({ studentId }: Props) {
 }
 
 const panel = { background: '#101010', border: '1px solid #262626', borderRadius: 24, padding: 24, marginBottom: 22 };
+const ruleBox = { background: '#180909', border: '1px solid #351111', borderRadius: 16, padding: 14, color: '#ffb8b8', marginBottom: 14 };
 const statusBox = { background: '#0b0b0b', border: '1px solid #1f1f1f', borderRadius: 16, padding: 14, display: 'grid', gap: 8, color: '#d8d8d8', margin: '18px 0' };
 const emptyState = { background: '#180909', border: '1px solid #351111', borderRadius: 16, padding: 18, color: '#ffb8b8' };
 const input = { background: '#090909', color: '#fff', border: '1px solid #262626', borderRadius: 12, padding: '12px 14px', width: '100%' };
