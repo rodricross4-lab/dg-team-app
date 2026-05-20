@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { getStudentWorkouts } from '../store/operationalStore';
 import { calculateEffectiveVolume, calculateVolumeLoad, type LogbookSet } from '../utils/smartLogbookEngine';
+import WorkoutModePanel from './WorkoutModePanel';
 import WorkoutTimer from './WorkoutTimer';
 
 type Props = { studentId: number };
@@ -91,6 +92,7 @@ export default function SmartLogbookPanel({ studentId }: Props) {
         Puxa os treinos salvos do aluno e registra cargas/reps somente das séries válidas.
       </p>
 
+      <WorkoutModePanel />
       <WorkoutTimer />
 
       <div style={ruleBox}>
