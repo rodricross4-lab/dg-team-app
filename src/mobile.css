@@ -1,0 +1,16 @@
+* { box-sizing: border-box; }
+html, body, #root { min-height: 100%; background: #030303; }
+body { margin: 0; overscroll-behavior: none; }
+button, input, select, textarea { font: inherit; }
+
+@media (max-width: 860px) {
+  aside { display: none !important; }
+  main { width: 100% !important; padding: 18px 14px 145px !important; }
+  h1 { font-size: 34px !important; line-height: 1.05 !important; }
+  h2 { font-size: 25px !important; }
+  input, select, textarea, button { min-height: 44px; }
+}
+
+@media (max-width: 720px) {
+  main > div, section { max-width: 100%; }
+}
