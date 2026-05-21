@@ -1,3 +1,4 @@
+import { enqueueSync } from './offlineSyncEngine';
 import { getSupabaseMissingMessage, isSupabaseReady } from './supabaseService';
 
 export type WorkoutExerciseRecord = {
@@ -66,6 +67,7 @@ export async function saveWorkout(workout: WorkoutRecord) {
     : [normalized, ...current];
 
   writeLocalWorkouts(next);
+  enqueueSync('workout', exists ? 'update' : 'create', normalized);
 
   return {
     source: isSupabaseReady() ? 'supabase-ready' as const : 'local' as const,
@@ -77,6 +79,7 @@ export async function saveWorkout(workout: WorkoutRecord) {
 export async function deleteWorkout(workoutId: string) {
   const next = readLocalWorkouts().filter((workout) => workout.id !== workoutId);
   writeLocalWorkouts(next);
+  enqueueSync('workout', 'delete', { id: workoutId });
 
   return {
     source: isSupabaseReady() ? 'supabase-ready' as const : 'local' as const,
