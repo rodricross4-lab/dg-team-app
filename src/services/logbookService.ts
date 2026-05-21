@@ -1,3 +1,4 @@
+import { enqueueSync } from './offlineSyncEngine';
 import { getSupabaseMissingMessage, isSupabaseReady } from './supabaseService';
 
 export type LogbookSetRecord = {
@@ -55,6 +56,7 @@ export async function saveLogbookSet(set: Omit<LogbookSetRecord, 'id' | 'perform
     : [normalized, ...current];
 
   writeLocalSets(next);
+  enqueueSync('logbook_set', exists ? 'update' : 'create', normalized);
 
   return {
     source: isSupabaseReady() ? 'supabase-ready' as const : 'local' as const,
@@ -66,6 +68,7 @@ export async function saveLogbookSet(set: Omit<LogbookSetRecord, 'id' | 'perform
 export async function deleteLogbookSet(setId: string) {
   const next = readLocalSets().filter((set) => set.id !== setId);
   writeLocalSets(next);
+  enqueueSync('logbook_set', 'delete', { id: setId });
 
   return {
     source: isSupabaseReady() ? 'supabase-ready' as const : 'local' as const,
