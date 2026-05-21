@@ -1,11 +1,25 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getSyncSummary } from '../services/offlineSyncEngine';
+import { startAutoSync, stopAutoSync } from '../services/autoSync';
 import { getSyncStatusLabel, processSyncQueue } from '../services/syncProcessor';
 
 export default function SyncStatusWidget() {
   const [status, setStatus] = useState(getSyncStatusLabel());
   const [summary, setSummary] = useState(() => getSyncSummary());
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    startAutoSync();
+    const interval = window.setInterval(() => {
+      setStatus(getSyncStatusLabel());
+      setSummary(getSyncSummary());
+    }, 5000);
+
+    return () => {
+      window.clearInterval(interval);
+      stopAutoSync();
+    };
+  }, []);
 
   const label = useMemo(() => {
     if (summary.failed > 0) return `${summary.failed} falhas no sync`;
