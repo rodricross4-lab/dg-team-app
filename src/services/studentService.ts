@@ -1,3 +1,4 @@
+import { enqueueSync } from './offlineSyncEngine';
 import { getSupabaseMissingMessage, isSupabaseReady } from './supabaseService';
 
 export type StudentRecord = {
@@ -46,12 +47,14 @@ export async function listStudents() {
 
 export async function saveStudent(student: StudentRecord) {
   const current = readLocalStudents();
-  const exists = current.some((item) => item.id === student.id);
+  const normalized = { ...student, id: student.id || crypto.randomUUID() };
+  const exists = current.some((item) => item.id === normalized.id);
   const next = exists
-    ? current.map((item) => (item.id === student.id ? student : item))
-    : [{ ...student, id: student.id || crypto.randomUUID() }, ...current];
+    ? current.map((item) => (item.id === normalized.id ? normalized : item))
+    : [normalized, ...current];
 
   writeLocalStudents(next);
+  enqueueSync('student', exists ? 'update' : 'create', normalized);
 
   return {
     source: isSupabaseReady() ? 'supabase-ready' as const : 'local' as const,
@@ -63,6 +66,7 @@ export async function saveStudent(student: StudentRecord) {
 export async function deleteStudent(studentId: string) {
   const next = readLocalStudents().filter((student) => student.id !== studentId);
   writeLocalStudents(next);
+  enqueueSync('student', 'delete', { id: studentId });
 
   return {
     source: isSupabaseReady() ? 'supabase-ready' as const : 'local' as const,
