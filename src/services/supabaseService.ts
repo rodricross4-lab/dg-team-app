@@ -1,3 +1,5 @@
+import { createClient } from '@supabase/supabase-js';
+
 type SupabaseConfig = {
   url?: string;
   anonKey?: string;
@@ -18,4 +20,20 @@ export function isSupabaseReady() {
 export function getSupabaseMissingMessage() {
   if (isSupabaseReady()) return 'Supabase configurado.';
   return 'Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY para ativar persistência real.';
+}
+
+export function getSupabaseClient() {
+  const config = getSupabaseConfig();
+
+  if (!config.url || !config.anonKey) {
+    throw new Error(getSupabaseMissingMessage());
+  }
+
+  return createClient(config.url, config.anonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  });
 }
