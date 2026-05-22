@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { getSupabaseClient, isSupabaseReady } from './supabaseService';
 
 export type AuthUser = {
   id: string;
@@ -14,6 +14,11 @@ export function getCurrentUser(): AuthUser | null {
   return raw ? JSON.parse(raw) : null;
 }
 
+export function setCurrentUser(user: AuthUser) {
+  localStorage.setItem(AUTH_KEY, JSON.stringify(user));
+  return user;
+}
+
 export function loginDemoCoach(): AuthUser {
   const user: AuthUser = {
     id: 'coach-demo',
@@ -22,15 +27,15 @@ export function loginDemoCoach(): AuthUser {
     role: 'coach'
   };
 
-  localStorage.setItem(AUTH_KEY, JSON.stringify(user));
-  return user;
+  return setCurrentUser(user);
 }
 
 export async function signInCoach(email: string, password: string) {
-  if (!isSupabaseConfigured() || !supabase) {
+  if (!isSupabaseReady()) {
     return { ok: false, message: 'Supabase não configurado.' };
   }
 
+  const supabase = getSupabaseClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
@@ -44,12 +49,13 @@ export async function signInCoach(email: string, password: string) {
     role: 'coach'
   };
 
-  localStorage.setItem(AUTH_KEY, JSON.stringify(user));
+  setCurrentUser(user);
   return { ok: true, message: 'Login realizado com sucesso.', user };
 }
 
 export async function signOutCoach() {
-  if (supabase) {
+  if (isSupabaseReady()) {
+    const supabase = getSupabaseClient();
     await supabase.auth.signOut();
   }
 
@@ -58,7 +64,8 @@ export async function signOutCoach() {
 }
 
 export async function getCurrentCoachCloud() {
-  if (!isSupabaseConfigured() || !supabase) return null;
+  if (!isSupabaseReady()) return null;
+  const supabase = getSupabaseClient();
   const { data } = await supabase.auth.getUser();
   return data.user;
 }
