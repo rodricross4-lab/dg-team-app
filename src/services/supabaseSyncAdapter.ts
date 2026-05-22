@@ -1,5 +1,5 @@
 import type { SyncQueueItem } from './offlineSyncEngine';
-import { isSupabaseReady } from './supabaseService';
+import { getSupabaseClient, isSupabaseReady } from './supabaseService';
 
 type AdapterResult = {
   ok: boolean;
@@ -20,6 +20,14 @@ function getTableName(entity: SyncQueueItem['entity']) {
   return tableMap[entity];
 }
 
+function getPayloadId(payload: unknown) {
+  if (payload && typeof payload === 'object' && 'id' in payload) {
+    return String((payload as { id: string }).id);
+  }
+
+  return null;
+}
+
 export async function syncQueueItemToSupabase(item: SyncQueueItem): Promise<AdapterResult> {
   if (!isSupabaseReady()) {
     return {
@@ -28,12 +36,39 @@ export async function syncQueueItemToSupabase(item: SyncQueueItem): Promise<Adap
     };
   }
 
+  const supabase = getSupabaseClient();
   const tableName = getTableName(item.entity);
 
-  // Próxima etapa: substituir por chamadas reais usando o Supabase client.
-  // Mantemos o adapter separado para evitar acoplar o processador ao banco.
+  if (item.action === 'delete') {
+    const id = getPayloadId(item.payload);
+
+    if (!id) {
+      return {
+        ok: false,
+        message: `Delete sem ID para ${tableName}.`
+      };
+    }
+
+    const { error } = await supabase.from(tableName).delete().eq('id', id);
+
+    if (error) {
+      return { ok: false, message: error.message };
+    }
+
+    return {
+      ok: true,
+      message: `${tableName} removido da nuvem.`
+    };
+  }
+
+  const { error } = await supabase.from(tableName).upsert(item.payload as Record<string, unknown>);
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+
   return {
     ok: true,
-    message: `${item.action} preparado para ${tableName}`
+    message: `${tableName} sincronizado na nuvem.`
   };
 }
