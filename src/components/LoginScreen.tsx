@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { loginDemoCoach, signInCoach } from '../services/authService';
-import { getCloudStatusLabel } from '../services/supabaseClient';
+import { loginDemoCoach } from '../services/authService';
+import { getSupabaseMissingMessage, isSupabaseReady } from '../services/supabaseService';
+import { signInWithSupabase } from '../services/supabaseAuthService';
 
 type Props = { onLogin: () => void };
 
@@ -12,7 +13,7 @@ export default function LoginScreen({ onLogin }: Props) {
 
   async function entrarCloud() {
     setLoading(true);
-    const result = await signInCoach(email, senha);
+    const result = await signInWithSupabase({ email, password: senha });
     setStatus(result.message);
     setLoading(false);
     if (result.ok) onLogin();
@@ -32,13 +33,13 @@ export default function LoginScreen({ onLogin }: Props) {
           <div style={eyebrow}>DG TEAM COACH SYSTEM</div>
           <h1 style={headline}>Controle seus alunos com padrão profissional.</h1>
           <p style={description}>
-            Treinos, logbook, avaliações, check-ins, alertas e evolução em uma central operacional pensada para coach.
+            Treinos, logbook, avaliações, check-ins, alertas, sincronização cloud e evolução em uma central operacional pensada para coach.
           </p>
 
           <div style={features}>
             <div style={featureCard}><strong>Logbook</strong><span>Séries válidas, cargas e progressão.</span></div>
-            <div style={featureCard}><strong>Alunos</strong><span>Perfis, treinos e acompanhamento.</span></div>
-            <div style={featureCard}><strong>IA DG</strong><span>Alertas, retenção e ações rápidas.</span></div>
+            <div style={featureCard}><strong>Offline-first</strong><span>Salva local e sincroniza depois.</span></div>
+            <div style={featureCard}><strong>Cloud</strong><span>Supabase Auth e persistência real.</span></div>
           </div>
         </section>
 
@@ -48,7 +49,7 @@ export default function LoginScreen({ onLogin }: Props) {
             <p style={subtitle}>Plataforma operacional do coach</p>
           </div>
 
-          <div style={statusPill}>{getCloudStatusLabel()}</div>
+          <div style={statusPill}>{isSupabaseReady() ? 'Supabase conectado' : getSupabaseMissingMessage()}</div>
 
           <div style={formBox}>
             <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail do coach" style={input} />
