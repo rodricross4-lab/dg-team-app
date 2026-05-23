@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSupabaseAuth } from '../hooks/useSupabaseAuth';
 import { loginDemoCoach } from '../services/authService';
 import { getSupabaseMissingMessage, isSupabaseReady } from '../services/supabaseService';
 import { signInWithSupabase } from '../services/supabaseAuthService';
@@ -6,10 +7,17 @@ import { signInWithSupabase } from '../services/supabaseAuthService';
 type Props = { onLogin: () => void };
 
 export default function LoginScreen({ onLogin }: Props) {
+  const { loading: sessionLoading, authenticated } = useSupabaseAuth();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!sessionLoading && authenticated) {
+      onLogin();
+    }
+  }, [authenticated, onLogin, sessionLoading]);
 
   async function entrarCloud() {
     setLoading(true);
@@ -22,6 +30,18 @@ export default function LoginScreen({ onLogin }: Props) {
   function entrarDemo() {
     loginDemoCoach();
     onLogin();
+  }
+
+  if (sessionLoading) {
+    return (
+      <div style={page}>
+        <div style={backgroundGlow} />
+        <section style={{ ...card, position: 'relative', zIndex: 1, maxWidth: 460 }}>
+          <div style={brand}>DG TEAM</div>
+          <p style={subtitle}>Verificando sessão cloud...</p>
+        </section>
+      </div>
+    );
   }
 
   return (
