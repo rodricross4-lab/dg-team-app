@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
+import type { LogbookSet, WorkoutSession } from '../types';
 import { getStudentWorkouts } from '../store/operationalStore';
-import { calculateEffectiveVolume, calculateVolumeLoad, type LogbookSet } from '../utils/smartLogbookEngine';
+import { finishWorkoutSession, getEffectiveVolume, getVolumeLoad, saveLogbookSet, startWorkoutSession } from '../services/logbookService';
 import WorkoutModePanel from './WorkoutModePanel';
 import WorkoutTimer from './WorkoutTimer';
 
-type Props = { studentId: number };
+type Props = { studentId: string };
 
 type SetLog = {
+  setId?: string;
   exerciseId: string;
   load: string;
   reps: string;
@@ -14,44 +16,74 @@ type SetLog = {
   execution: string;
 };
 
-const LOG_KEY = 'dg-team-logbook-store';
+const DEFAULT_TENANT_ID = 'local-tenant';
 
-function loadLogs(studentId: number): SetLog[] {
-  try {
-    const raw = localStorage.getItem(`${LOG_KEY}-${studentId}`);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveLogs(studentId: number, logs: SetLog[]) {
-  localStorage.setItem(`${LOG_KEY}-${studentId}`, JSON.stringify(logs));
-}
-
-function toQuality(execution: string): LogbookSet['quality'] {
-  if (execution === 'excelente') return 'high';
-  if (execution === 'ruim') return 'low';
-  return 'ok';
+function toExecutionQuality(execution: string): LogbookSet['execution_quality'] {
+  if (execution === 'excelente') return 5;
+  if (execution === 'boa') return 4;
+  if (execution === 'ok') return 3;
+  return 2;
 }
 
 export default function SmartLogbookPanel({ studentId }: Props) {
   const workouts = useMemo(() => getStudentWorkouts(studentId), [studentId]);
   const [selectedWorkoutId, setSelectedWorkoutId] = useState(workouts[0]?.id || '');
   const selectedWorkout = workouts.find((workout) => workout.id === selectedWorkoutId);
-  const [logs, setLogs] = useState<SetLog[]>(() => loadLogs(studentId));
+  const [session, setSession] = useState<WorkoutSession | null>(null);
+  const [sets, setSets] = useState<LogbookSet[]>([]);
+  const [logs, setLogs] = useState<SetLog[]>([]);
   const [savedAt, setSavedAt] = useState('');
 
-  function updateLog(exerciseId: string, patch: Partial<SetLog>) {
+  async function ensureSession() {
+    if (session) return session;
+
+    const result = await startWorkoutSession({
+      tenant_id: DEFAULT_TENANT_ID,
+      student_id: studentId,
+      workout_id: selectedWorkoutId || 'manual-workout',
+    });
+
+    setSession(result.data);
+    return result.data;
+  }
+
+  async function updateLog(exerciseId: string, patch: Partial<SetLog>) {
+    const activeSession = await ensureSession();
+
+    const currentLog = getLog(exerciseId);
+    const nextLog = { ...currentLog, ...patch };
+
+    const saved = await saveLogbookSet({
+      id: nextLog.setId,
+      tenant_id: activeSession.tenant_id,
+      session_id: activeSession.id,
+      student_id: studentId,
+      exercise_id: exerciseId,
+      set_type: 'valid',
+      set_order: 1,
+      weight_kg: Number(nextLog.load) || 0,
+      reps: Number(nextLog.reps) || 0,
+      rir: nextLog.rir === '' ? undefined : Number(nextLog.rir),
+      execution_quality: toExecutionQuality(nextLog.execution),
+    });
+
     setLogs((current) => {
       const exists = current.some((item) => item.exerciseId === exerciseId);
       const next = exists
-        ? current.map((item) => (item.exerciseId === exerciseId ? { ...item, ...patch } : item))
-        : [...current, { exerciseId, load: '', reps: '', rir: '', execution: 'boa', ...patch }];
+        ? current.map((item) => (item.exerciseId === exerciseId ? { ...nextLog, setId: saved.data.id } : item))
+        : [...current, { ...nextLog, setId: saved.data.id }];
 
-      saveLogs(studentId, next);
       return next;
     });
+
+    setSets((current) => {
+      const exists = current.some((item) => item.id === saved.data.id);
+      return exists
+        ? current.map((item) => (item.id === saved.data.id ? saved.data : item))
+        : [saved.data, ...current];
+    });
+
+    setSavedAt(new Date().toISOString());
   }
 
   function getLog(exerciseId: string) {
@@ -64,32 +96,25 @@ export default function SmartLogbookPanel({ studentId }: Props) {
     };
   }
 
-  function finishWorkout() {
-    const now = new Date().toISOString();
-    saveLogs(studentId, logs);
-    setSavedAt(now);
+  async function finishWorkout() {
+    if (!session) return;
+
+    const result = await finishWorkoutSession(session.id);
+    setSavedAt(new Date().toISOString());
+
+    if (result.data) {
+      setSession(result.data);
+    }
   }
 
-  const validSets: LogbookSet[] = logs
-    .map((log) => ({
-      kind: 'working' as const,
-      load: Number(log.load) || 0,
-      reps: Number(log.reps) || 0,
-      minReps: 6,
-      maxReps: 12,
-      rir: Number(log.rir),
-      quality: toQuality(log.execution)
-    }))
-    .filter((set) => set.load > 0 || set.reps > 0);
-
-  const effectiveVolume = calculateEffectiveVolume(validSets);
-  const volumeLoad = calculateVolumeLoad(validSets);
+  const effectiveVolume = getEffectiveVolume(sets);
+  const volumeLoad = getVolumeLoad(sets);
 
   return (
     <div style={panel}>
       <h2 style={{ marginBottom: 10 }}>Logbook presencial inteligente</h2>
       <p style={{ color: '#a0a0a0', marginBottom: 18 }}>
-        Puxa os treinos salvos do aluno e registra cargas/reps somente das séries válidas.
+        Registra sessões reais, séries válidas, volume e volume load com sync queue.
       </p>
 
       <WorkoutModePanel />
@@ -101,9 +126,10 @@ export default function SmartLogbookPanel({ studentId }: Props) {
 
       <div style={statusBox}>
         <span>Treinos disponíveis: <strong>{workouts.length}</strong></span>
+        <span>Sessão atual: <strong>{session?.status || 'não iniciada'}</strong></span>
         <span>Séries válidas registradas: <strong>{effectiveVolume}</strong></span>
         <span>Volume load válido: <strong>{volumeLoad}kg</strong></span>
-        <span>Último salvamento: <strong>{savedAt || 'autosave ativo'}</strong></span>
+        <span>Último salvamento: <strong>{savedAt || 'aguardando primeiro set'}</strong></span>
       </div>
 
       {workouts.length === 0 ? (
