@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { LogbookSet, WorkoutSession } from '../types';
 import { getStudentWorkouts } from '../store/operationalStore';
 import { finishWorkoutSession, getEffectiveVolume, getVolumeLoad, saveLogbookSet, startWorkoutSession } from '../services/logbookService';
+import { analyzeProgression } from '../utils/dgTrainingRules';
 import WorkoutModePanel from './WorkoutModePanel';
 import WorkoutTimer from './WorkoutTimer';
 
@@ -23,6 +24,21 @@ function toExecutionQuality(execution: string): LogbookSet['execution_quality'] 
   if (execution === 'boa') return 4;
   if (execution === 'ok') return 3;
   return 2;
+}
+
+function parseRepRange(range: string) {
+  const [min, max] = range.split('-').map((value) => Number(value.trim()));
+  return {
+    min: Number.isFinite(min) ? min : 6,
+    max: Number.isFinite(max) ? max : 12,
+  };
+}
+
+function getDecisionStyle(priority: string) {
+  if (priority === 'success') return progressionSuccess;
+  if (priority === 'danger') return progressionDanger;
+  if (priority === 'warning') return progressionWarning;
+  return progressionInfo;
 }
 
 export default function SmartLogbookPanel({ studentId }: Props) {
@@ -149,6 +165,13 @@ export default function SmartLogbookPanel({ studentId }: Props) {
           <div style={{ display: 'grid', gap: 14, marginTop: 18 }}>
             {selectedWorkout?.exercises.map((exercise) => {
               const log = getLog(exercise.id);
+              const exerciseSets = sets.filter((set) => set.exercise_id === exercise.id);
+              const range = parseRepRange(exercise.reps);
+              const decision = analyzeProgression({
+                currentSets: exerciseSets,
+                targetMin: range.min,
+                targetMax: range.max,
+              });
 
               return (
                 <div key={exercise.id} style={exerciseCard}>
@@ -169,9 +192,10 @@ export default function SmartLogbookPanel({ studentId }: Props) {
                     </select>
                   </div>
 
-                  <p style={{ color: '#ffb8b8', marginTop: 10 }}>
-                    IA DG: bateu topo do range com execução boa/excelente? Próxima sessão pode subir carga com microloading.
-                  </p>
+                  <div style={getDecisionStyle(decision.priority)}>
+                    <strong>{decision.label}</strong>
+                    <p style={{ margin: '6px 0 0' }}>{decision.message}</p>
+                  </div>
                 </div>
               );
             })}
@@ -192,3 +216,7 @@ const input = { background: '#090909', color: '#fff', border: '1px solid #262626
 const exerciseCard = { background: '#0b0b0b', border: '1px solid #1f1f1f', borderRadius: 18, padding: 16 };
 const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 10 };
 const saveButton = { background: '#e01616', color: '#fff', border: 0, borderRadius: 14, padding: '14px 18px', marginTop: 18, width: '100%', cursor: 'pointer', fontWeight: 800 };
+const progressionInfo = { background: '#111827', border: '1px solid #273449', borderRadius: 14, color: '#dbeafe', padding: 12, marginTop: 12 };
+const progressionSuccess = { background: '#07180d', border: '1px solid #174d27', borderRadius: 14, color: '#b7f7c8', padding: 12, marginTop: 12 };
+const progressionWarning = { background: '#1a1305', border: '1px solid #5a3b0b', borderRadius: 14, color: '#ffe3a3', padding: 12, marginTop: 12 };
+const progressionDanger = { background: '#1c0707', border: '1px solid #5a1515', borderRadius: 14, color: '#ffb8b8', padding: 12, marginTop: 12 };
