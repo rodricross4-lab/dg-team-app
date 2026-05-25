@@ -30,6 +30,16 @@ export type LogbookSet = {
   updated_at: string;
 };
 
+export type PRType = 'load' | 'reps' | 'volume_load' | 'quality';
+
+export type PersonalRecord = {
+  type: PRType;
+  label: string;
+  previousValue: number;
+  currentValue: number;
+  message: string;
+};
+
 export type ProgressionSuggestion = {
   increaseLoad: boolean;
   maintainLoad: boolean;
