@@ -1,4 +1,4 @@
-import type { LogbookSet } from '../types/logbook';
+import type { LogbookSet, PersonalRecord } from '../types/logbook';
 
 export type ProgressionDecision = {
   status: 'increase_load' | 'consolidate' | 'maintain' | 'performance_drop' | 'insufficient_data';
@@ -33,11 +33,7 @@ export function shouldIncreaseLoad(params: {
 }): boolean {
   const { reps, targetMax, rir = 99, executionQuality = 0 } = params;
 
-  return (
-    reps >= targetMax &&
-    rir <= 2 &&
-    executionQuality >= 4
-  );
+  return reps >= targetMax && rir <= 2 && executionQuality >= 4;
 }
 
 export function shouldMaintainLoad(params: {
@@ -101,8 +97,75 @@ export function getBestValidSet(sets: LogbookSet[]): LogbookSet | null {
   return validSets.reduce((best, current) => {
     const bestScore = (best.weight_kg || 0) * (best.reps || 0);
     const currentScore = (current.weight_kg || 0) * (current.reps || 0);
+
     return currentScore > bestScore ? current : best;
   }, validSets[0]);
+}
+
+export function detectPersonalRecords(params: {
+  currentSets: LogbookSet[];
+  previousSets?: LogbookSet[];
+}): PersonalRecord[] {
+  const currentBest = getBestValidSet(params.currentSets);
+  const previousBest = getBestValidSet(params.previousSets || []);
+
+  if (!currentBest) return [];
+
+  const prs: PersonalRecord[] = [];
+
+  const currentLoad = currentBest.weight_kg || 0;
+  const previousLoad = previousBest?.weight_kg || 0;
+
+  if (currentLoad > previousLoad) {
+    prs.push({
+      type: 'load',
+      label: 'Novo PR de carga',
+      previousValue: previousLoad,
+      currentValue: currentLoad,
+      message: `🏆 Nova maior carga registrada: ${currentLoad}kg.`
+    });
+  }
+
+  const currentReps = currentBest.reps || 0;
+  const previousReps = previousBest?.reps || 0;
+
+  if (currentReps > previousReps) {
+    prs.push({
+      type: 'reps',
+      label: 'Novo PR de repetições',
+      previousValue: previousReps,
+      currentValue: currentReps,
+      message: `🏆 Novo recorde de repetições: ${currentReps} reps.`
+    });
+  }
+
+  const currentVolumeLoad = calculateVolumeLoad(params.currentSets);
+  const previousVolumeLoad = calculateVolumeLoad(params.previousSets || []);
+
+  if (currentVolumeLoad > previousVolumeLoad) {
+    prs.push({
+      type: 'volume_load',
+      label: 'Novo PR de volume load',
+      previousValue: previousVolumeLoad,
+      currentValue: currentVolumeLoad,
+      message: `🏆 Novo recorde de volume load: ${currentVolumeLoad}kg.`
+    });
+  }
+
+  const currentQuality = currentBest.execution_quality || 0;
+  const previousQuality = previousBest?.execution_quality || 0;
+
+  if (currentQuality > previousQuality) {
+    prs.push({
+      type: 'quality',
+      label: 'Novo PR de execução',
+      previousValue: previousQuality,
+      currentValue: currentQuality,
+      message: '🏆 Melhor execução registrada neste exercício.'
+    });
+  }
+
+  return prs;
 }
 
 export function analyzeProgression(params: {
@@ -146,14 +209,16 @@ export function analyzeProgression(params: {
       };
     }
 
-    if (detectQualityProgression({
-      currentExecutionQuality: currentQuality,
-      previousExecutionQuality: previousQuality,
-      currentLoad,
-      previousLoad,
-      currentReps,
-      previousReps,
-    })) {
+    if (
+      detectQualityProgression({
+        currentExecutionQuality: currentQuality,
+        previousExecutionQuality: previousQuality,
+        currentLoad,
+        previousLoad,
+        currentReps,
+        previousReps,
+      })
+    ) {
       return {
         status: 'maintain',
         label: 'Progressão de qualidade',
@@ -163,12 +228,14 @@ export function analyzeProgression(params: {
     }
   }
 
-  if (shouldIncreaseLoad({
-    reps: currentReps,
-    targetMax,
-    rir: currentRir,
-    executionQuality: currentQuality,
-  })) {
+  if (
+    shouldIncreaseLoad({
+      reps: currentReps,
+      targetMax,
+      rir: currentRir,
+      executionQuality: currentQuality,
+    })
+  ) {
     return {
       status: 'increase_load',
       label: 'Subir carga',
