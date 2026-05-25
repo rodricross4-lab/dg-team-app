@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { LogbookSet, WorkoutSession } from '../types';
 import { getStudentWorkouts } from '../store/operationalStore';
 import { finishWorkoutSession, getEffectiveVolume, getVolumeLoad, saveLogbookSet, startWorkoutSession } from '../services/logbookService';
-import { analyzeProgression } from '../utils/dgTrainingRules';
+import { analyzeProgression, detectPersonalRecords } from '../utils/dgTrainingRules';
 import WorkoutModePanel from './WorkoutModePanel';
 import WorkoutTimer from './WorkoutTimer';
 
@@ -172,6 +172,7 @@ export default function SmartLogbookPanel({ studentId }: Props) {
                 targetMin: range.min,
                 targetMax: range.max,
               });
+              const prs = detectPersonalRecords({ currentSets: exerciseSets });
 
               return (
                 <div key={exercise.id} style={exerciseCard}>
@@ -191,6 +192,17 @@ export default function SmartLogbookPanel({ studentId }: Props) {
                       <option>ruim</option>
                     </select>
                   </div>
+
+                  {prs.length > 0 && (
+                    <div style={prBox}>
+                      {prs.map((pr) => (
+                        <div key={`${pr.type}-${pr.currentValue}`} style={prBadge}>
+                          <strong>{pr.label}</strong>
+                          <span>{pr.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div style={getDecisionStyle(decision.priority)}>
                     <strong>{decision.label}</strong>
@@ -220,3 +232,5 @@ const progressionInfo = { background: '#111827', border: '1px solid #273449', bo
 const progressionSuccess = { background: '#07180d', border: '1px solid #174d27', borderRadius: 14, color: '#b7f7c8', padding: 12, marginTop: 12 };
 const progressionWarning = { background: '#1a1305', border: '1px solid #5a3b0b', borderRadius: 14, color: '#ffe3a3', padding: 12, marginTop: 12 };
 const progressionDanger = { background: '#1c0707', border: '1px solid #5a1515', borderRadius: 14, color: '#ffb8b8', padding: 12, marginTop: 12 };
+const prBox = { display: 'grid', gap: 8, marginTop: 12 };
+const prBadge = { background: 'linear-gradient(90deg,#2b1600,#0b0b0b)', border: '1px solid #8a5b12', borderRadius: 14, color: '#ffe7ad', padding: 12, display: 'grid', gap: 4 };
