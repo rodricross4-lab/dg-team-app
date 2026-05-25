@@ -7,6 +7,13 @@ export type ProgressionDecision = {
   priority: 'success' | 'info' | 'warning' | 'danger';
 };
 
+export type RecoveryAlert = {
+  type: 'performance_drop' | 'low_quality' | 'high_fatigue' | 'too_easy' | 'high_volume';
+  label: string;
+  message: string;
+  severity: 'info' | 'warning' | 'danger';
+};
+
 export function isValidSet(set: LogbookSet): boolean {
   return set.set_type === 'valid';
 }
@@ -166,6 +173,87 @@ export function detectPersonalRecords(params: {
   }
 
   return prs;
+}
+
+export function analyzeRecovery(params: {
+  currentSets: LogbookSet[];
+  previousSets?: LogbookSet[];
+  maxRecommendedValidSets?: number;
+}): RecoveryAlert[] {
+  const currentValidSets = params.currentSets.filter(isValidSet);
+  const previousValidSets = (params.previousSets || []).filter(isValidSet);
+  const alerts: RecoveryAlert[] = [];
+
+  if (!currentValidSets.length) return alerts;
+
+  const currentVolumeLoad = calculateVolumeLoad(currentValidSets);
+  const previousVolumeLoad = calculateVolumeLoad(previousValidSets);
+  const bestCurrent = getBestValidSet(currentValidSets);
+  const bestPrevious = getBestValidSet(previousValidSets);
+
+  if (bestCurrent && bestPrevious) {
+    const currentScore = (bestCurrent.weight_kg || 0) * (bestCurrent.reps || 0);
+    const previousScore = (bestPrevious.weight_kg || 0) * (bestPrevious.reps || 0);
+
+    if (currentScore < previousScore && (bestCurrent.reps || 0) < (bestPrevious.reps || 0)) {
+      alerts.push({
+        type: 'performance_drop',
+        label: 'Queda de performance',
+        message: 'Performance caiu contra a sessão anterior. Manter carga, revisar sono/recuperação e evitar aumentar volume agora.',
+        severity: 'danger',
+      });
+    }
+  }
+
+  const lowQualitySets = currentValidSets.filter((set) => (set.execution_quality || 0) <= 2);
+  if (lowQualitySets.length > 0) {
+    alerts.push({
+      type: 'low_quality',
+      label: 'Execução abaixo do padrão',
+      message: 'Há séries válidas com execução ruim. Priorizar estabilidade, amplitude eficiente e controle antes de carga.',
+      severity: 'warning',
+    });
+  }
+
+  const highFatigueSets = currentValidSets.filter((set) => (set.rir ?? 99) <= 0);
+  if (highFatigueSets.length >= 2) {
+    alerts.push({
+      type: 'high_fatigue',
+      label: 'Fadiga alta',
+      message: 'Muitas séries em falha ou RIR 0. Monitorar recuperação e evitar aumentar volume na próxima sessão.',
+      severity: 'warning',
+    });
+  }
+
+  const tooEasySets = currentValidSets.filter((set) => (set.rir ?? 0) >= 4);
+  if (tooEasySets.length === currentValidSets.length && currentValidSets.length > 0) {
+    alerts.push({
+      type: 'too_easy',
+      label: 'Intensidade possivelmente baixa',
+      message: 'Todas as séries válidas ficaram longe da falha. Ajustar carga ou proximidade da falha para gerar tensão efetiva.',
+      severity: 'info',
+    });
+  }
+
+  if (params.maxRecommendedValidSets && currentValidSets.length > params.maxRecommendedValidSets) {
+    alerts.push({
+      type: 'high_volume',
+      label: 'Volume acima do planejado',
+      message: 'Número de séries válidas passou do recomendado. Avaliar se isso é recuperável antes de repetir.',
+      severity: 'warning',
+    });
+  }
+
+  if (previousVolumeLoad > 0 && currentVolumeLoad < previousVolumeLoad * 0.85) {
+    alerts.push({
+      type: 'performance_drop',
+      label: 'Volume load caiu',
+      message: 'Volume load ficou mais de 15% abaixo da sessão anterior. Revisar fadiga, descanso e escolha de exercício.',
+      severity: 'warning',
+    });
+  }
+
+  return alerts;
 }
 
 export function analyzeProgression(params: {
