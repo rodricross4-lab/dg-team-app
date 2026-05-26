@@ -1,13 +1,16 @@
-name: DG TEAM CI
+name: DG Team App CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
-    branches: [main]
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - feature/real-data-foundation
 
 jobs:
-  build:
+  validate:
     name: Typecheck and build
     runs-on: ubuntu-latest
 
@@ -15,7 +18,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -24,8 +27,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Typecheck
+      - name: Run typecheck
         run: npm run typecheck
 
-      - name: Build
+      - name: Build app
         run: npm run build
