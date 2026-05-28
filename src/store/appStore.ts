@@ -1,4 +1,4 @@
-import type { Student, WorkoutSession } from '../types';
+import type { GeneratedWorkout, Student } from '../types';
 import { createEntity, deleteEntity, updateEntity } from '../utils/crudFactory';
 import { loadFromStorage, saveToStorage } from '../utils/storage';
 
@@ -6,7 +6,7 @@ const STORE_KEY = 'dg-team-app-store';
 
 export type AppStore = {
   students: Student[];
-  workouts: Record<string, WorkoutSession[]>;
+  workouts: Record<string, GeneratedWorkout[]>;
 };
 
 export const initialStore: AppStore = {
@@ -52,7 +52,7 @@ export function removeStudent(store: AppStore, id: string): AppStore {
   return next;
 }
 
-export function saveStudentWorkouts(store: AppStore, studentId: string, workouts: WorkoutSession[]): AppStore {
+export function saveStudentWorkouts(store: AppStore, studentId: string, workouts: GeneratedWorkout[]): AppStore {
   const next = {
     ...store,
     workouts: {

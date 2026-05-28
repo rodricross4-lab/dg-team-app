@@ -33,3 +33,33 @@ export type WorkoutExercise = {
   created_at: string;
   updated_at: string;
 };
+
+export type GeneratedWorkoutSet = {
+  id: string;
+  type: 'aquecimento' | 'ajuste' | 'valida' | 'backoff';
+  load: number;
+  reps: number;
+  rir: number;
+  execution: 'ruim' | 'ok' | 'boa' | 'excelente';
+  notes: string;
+  countsVolume: boolean;
+};
+
+export type GeneratedWorkoutExercise = {
+  id: string;
+  name: string;
+  group: string;
+  range: string;
+  rest: string;
+  sets: GeneratedWorkoutSet[];
+};
+
+export type GeneratedWorkout = {
+  id: string;
+  week: number;
+  name: string;
+  date?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  exercises: GeneratedWorkoutExercise[];
+};
