@@ -1,4 +1,4 @@
-export type SyncAction = 'create' | 'update' | 'delete';
+export type SyncAction = 'create' | 'update' | 'delete' | 'archive';
 export type SyncEntity = 'student' | 'workout' | 'logbook_set' | 'pr' | 'assessment' | 'checkin' | 'photo';
 
 export type SyncQueueItem = {
