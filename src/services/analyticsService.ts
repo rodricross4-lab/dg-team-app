@@ -1,6 +1,8 @@
-import { loadOperationalStore } from '../store/operationalStore';
-import type { DashboardSummary, ExerciseTrendPoint, LogbookSet, MuscleVolume, RecentPR, Student } from '../types';
-import { getStoredLogbookSets, getStoredWorkoutSessions } from './logbookService';
+import { loadOperationalStore, type EditableExercise } from '../store/operationalStore';
+import type { CommandCenterInsight, DashboardSummary, ExerciseTrendPoint, LogbookSet, MuscleVolume, RecentPR, Student } from '../types';
+import { analyzeProgression, analyzeRecovery } from '../utils/dgTrainingRules';
+import { getExerciseSessionGroups, getStoredLogbookSets, getStoredWorkoutSessions } from './logbookService';
+import { getStoredStudents } from './studentService';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -51,6 +53,46 @@ function getExerciseGroups() {
   });
 
   return groups;
+}
+
+function getExerciseLookup() {
+  const exercises = new Map<string, EditableExercise & { studentId: string }>();
+
+  loadOperationalStore().workouts.forEach((workout) => {
+    workout.exercises.forEach((exercise) => {
+      exercises.set(exercise.id, {
+        ...exercise,
+        studentId: workout.studentId,
+      });
+    });
+  });
+
+  return exercises;
+}
+
+function getStudentNameMap(students = getStoredStudents()) {
+  return new Map(students.map((student) => [student.id, student.name]));
+}
+
+function parseRepRange(range: string) {
+  const [min, max] = range.split('-').map((value) => Number(value.trim()));
+
+  return {
+    min: Number.isFinite(min) ? min : 6,
+    max: Number.isFinite(max) ? max : 12,
+  };
+}
+
+function getPrLabel(type: RecentPR['type']) {
+  if (type === 'load') return 'PR de carga';
+  if (type === 'reps') return 'PR de reps';
+  return 'PR de volume load';
+}
+
+function getPrUnit(type: RecentPR['type']) {
+  if (type === 'load') return 'kg';
+  if (type === 'reps') return ' reps';
+  return 'kg';
 }
 
 function getWeeklyValidSets(studentId?: string) {
@@ -199,6 +241,124 @@ export function getDashboardAlerts(students: Student[]) {
   if (summary.recentPRs > 0) alerts.push(`${summary.recentPRs} PR(s) detectado(s) nos ultimos 7 dias.`);
 
   return alerts;
+}
+
+export function getRecentPRInsights(limit = 4, studentId?: string): CommandCenterInsight[] {
+  const exercises = getExerciseLookup();
+  const studentNames = getStudentNameMap();
+
+  return getRecentPRs()
+    .filter((pr) => isWithinLastDays(pr.created_at, 14) && (!studentId || pr.student_id === studentId))
+    .slice(0, limit)
+    .map((pr) => {
+      const exercise = exercises.get(pr.exercise_id);
+      const unit = getPrUnit(pr.type);
+
+      return {
+        title: getPrLabel(pr.type),
+        detail: `${exercise?.name || pr.exercise_id} - ${pr.previousValue}${unit} para ${pr.currentValue}${unit}`,
+        action: studentNames.get(pr.student_id) || 'Aluno ativo',
+        severity: 'success',
+      };
+    });
+}
+
+export function getProgressionInsights(limit = 4, studentId?: string): CommandCenterInsight[] {
+  const insights: CommandCenterInsight[] = [];
+
+  getExerciseLookup().forEach((exercise) => {
+    if (studentId && exercise.studentId !== studentId) return;
+
+    const groups = getExerciseSessionGroups(exercise.studentId, exercise.id);
+    const current = groups[0];
+    if (!current?.sets.length) return;
+
+    const previous = groups[1];
+    const range = parseRepRange(exercise.reps);
+    const decision = analyzeProgression({
+      currentSets: current.sets,
+      previousSets: previous?.sets || [],
+      targetMin: range.min,
+      targetMax: range.max,
+    });
+
+    if (decision.status === 'insufficient_data') return;
+
+    insights.push({
+      title: decision.label,
+      detail: `${exercise.name} - ${decision.message}`,
+      action: exercise.group,
+      severity: decision.priority,
+    });
+  });
+
+  return insights.slice(0, limit);
+}
+
+export function getRecoveryInsights(limit = 4, studentId?: string): CommandCenterInsight[] {
+  const insights: CommandCenterInsight[] = [];
+
+  getExerciseLookup().forEach((exercise) => {
+    if (studentId && exercise.studentId !== studentId) return;
+
+    const groups = getExerciseSessionGroups(exercise.studentId, exercise.id);
+    const current = groups[0];
+    if (!current?.sets.length) return;
+
+    const alerts = analyzeRecovery({
+      currentSets: current.sets,
+      previousSets: groups[1]?.sets || [],
+      maxRecommendedValidSets: Number(exercise.validSets) || undefined,
+    });
+
+    alerts.forEach((alert) => {
+      insights.push({
+        title: alert.label,
+        detail: `${exercise.name} - ${alert.message}`,
+        action: exercise.group,
+        severity: alert.severity,
+      });
+    });
+  });
+
+  if (insights.length) {
+    return insights.slice(0, limit);
+  }
+
+  return getStudentsAtRisk(getStoredStudents())
+    .filter((student) => !studentId || student.id === studentId)
+    .slice(0, limit)
+    .map((student) => ({
+    title: 'Aluno em alerta',
+    detail: student.alerts?.[0] || 'Sem sets validos recentes para aluno com treino ativo.',
+    action: student.name,
+    severity: 'warning',
+  }));
+}
+
+export function getAlertInsights(students = getStoredStudents(), limit = 4): CommandCenterInsight[] {
+  const alerts = getDashboardAlerts(students).map((alert) => ({
+    title: 'Alerta operacional',
+    detail: alert,
+    action: 'Revisar hoje',
+    severity: 'warning' as const,
+  }));
+
+  return alerts.slice(0, limit);
+}
+
+export function getSmartCardMetrics(students = getStoredStudents()) {
+  const summary = getDashboardSummary(students);
+  const adherence = summary.activeStudents
+    ? Math.round((summary.workoutsToday / Math.max(summary.activeStudents, 1)) * 100)
+    : 0;
+
+  return [
+    ['Aderencia hoje', `${Math.min(adherence, 100)}%`, `${summary.workoutsToday} treino(s) registrado(s)`],
+    ['Performance media', summary.executionQuality ? `${summary.executionQuality}%` : '--', `${summary.validSets} series validas`],
+    ['Alunos em alerta', String(summary.studentsAtRisk), 'Base real do logbook'],
+    ['PRs recentes', String(summary.recentPRs), 'Ultimos 7 dias'],
+  ] as const;
 }
 
 export function getExercisePerformanceTrend(studentId: string, exerciseId: string): ExerciseTrendPoint[] {
