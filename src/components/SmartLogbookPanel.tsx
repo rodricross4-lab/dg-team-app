@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { LogbookSet, WorkoutSession } from '../types';
 import { getStudentWorkouts } from '../store/operationalStore';
 import { finishWorkoutSession, getEffectiveVolume, getVolumeLoad, saveLogbookSet, startWorkoutSession } from '../services/logbookService';
-import { analyzeProgression, detectPersonalRecords } from '../utils/dgTrainingRules';
+import { analyzeProgression, analyzeRecovery, detectPersonalRecords } from '../utils/dgTrainingRules';
 import WorkoutModePanel from './WorkoutModePanel';
 import WorkoutTimer from './WorkoutTimer';
 
@@ -39,6 +39,12 @@ function getDecisionStyle(priority: string) {
   if (priority === 'danger') return progressionDanger;
   if (priority === 'warning') return progressionWarning;
   return progressionInfo;
+}
+
+function getRecoveryStyle(severity: string) {
+  if (severity === 'danger') return recoveryDanger;
+  if (severity === 'warning') return recoveryWarning;
+  return recoveryInfo;
 }
 
 export default function SmartLogbookPanel({ studentId }: Props) {
@@ -167,12 +173,17 @@ export default function SmartLogbookPanel({ studentId }: Props) {
               const log = getLog(exercise.id);
               const exerciseSets = sets.filter((set) => set.exercise_id === exercise.id);
               const range = parseRepRange(exercise.reps);
+              const maxRecommendedValidSets = Number(exercise.validSets) || undefined;
               const decision = analyzeProgression({
                 currentSets: exerciseSets,
                 targetMin: range.min,
                 targetMax: range.max,
               });
               const prs = detectPersonalRecords({ currentSets: exerciseSets });
+              const recoveryAlerts = analyzeRecovery({
+                currentSets: exerciseSets,
+                maxRecommendedValidSets,
+              });
 
               return (
                 <div key={exercise.id} style={exerciseCard}>
@@ -199,6 +210,17 @@ export default function SmartLogbookPanel({ studentId }: Props) {
                         <div key={`${pr.type}-${pr.currentValue}`} style={prBadge}>
                           <strong>{pr.label}</strong>
                           <span>{pr.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {recoveryAlerts.length > 0 && (
+                    <div style={recoveryBox}>
+                      {recoveryAlerts.map((alert) => (
+                        <div key={`${alert.type}-${alert.label}`} style={getRecoveryStyle(alert.severity)}>
+                          <strong>{alert.label}</strong>
+                          <p style={{ margin: '6px 0 0' }}>{alert.message}</p>
                         </div>
                       ))}
                     </div>
@@ -234,3 +256,7 @@ const progressionWarning = { background: '#1a1305', border: '1px solid #5a3b0b',
 const progressionDanger = { background: '#1c0707', border: '1px solid #5a1515', borderRadius: 14, color: '#ffb8b8', padding: 12, marginTop: 12 };
 const prBox = { display: 'grid', gap: 8, marginTop: 12 };
 const prBadge = { background: 'linear-gradient(90deg,#2b1600,#0b0b0b)', border: '1px solid #8a5b12', borderRadius: 14, color: '#ffe7ad', padding: 12, display: 'grid', gap: 4 };
+const recoveryBox = { display: 'grid', gap: 8, marginTop: 12 };
+const recoveryInfo = { background: '#0a1420', border: '1px solid #1f4063', borderRadius: 14, color: '#b8dcff', padding: 12 };
+const recoveryWarning = { background: '#1a1305', border: '1px solid #5a3b0b', borderRadius: 14, color: '#ffe3a3', padding: 12 };
+const recoveryDanger = { background: '#1c0707', border: '1px solid #5a1515', borderRadius: 14, color: '#ffb8b8', padding: 12 };
