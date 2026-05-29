@@ -1,27 +1,40 @@
-const insights = [
-  ['Prioridade do dia', 'Contato com alunos sem check-in antes do horário de treino.'],
-  ['Progressão sugerida', 'Aplicar microloading onde o topo do range foi atingido com boa execução.'],
-  ['Controle de fadiga', 'Monitorar queda de performance nos lowers antes de aumentar volume.'],
-  ['Retenção', 'Alunos com baixa frequência precisam de ação rápida e mensagem direta.']
-];
+import {
+  getAlertInsights,
+  getProgressionInsights,
+  getRecentPRInsights,
+  getRecoveryInsights,
+} from '../services/analyticsService';
 
 export default function CommandCenterAIInsights() {
+  const insights = [
+    ...getAlertInsights().slice(0, 1),
+    ...getProgressionInsights(2),
+    ...getRecoveryInsights(2),
+    ...getRecentPRInsights(1),
+  ].slice(0, 4);
+
   return (
     <div style={panel}>
       <div style={head}>
         <div>
           <h3 style={{ margin: 0 }}>IA DG TEAM</h3>
-          <p style={sub}>Leitura operacional automática para tomada de decisão.</p>
+          <p style={sub}>Leitura operacional automatica para tomada de decisao.</p>
         </div>
         <span style={tag}>INSIGHTS</span>
       </div>
 
-      {insights.map(([title, detail]) => (
-        <div key={title} style={item}>
-          <strong>{title}</strong>
-          <p style={text}>{detail}</p>
+      {insights.length ? insights.map((insight) => (
+        <div key={`${insight.title}-${insight.detail}`} style={item}>
+          <strong>{insight.title}</strong>
+          <p style={text}>{insight.detail}</p>
+          <span style={pill}>{insight.action}</span>
         </div>
-      ))}
+      )) : (
+        <div style={item}>
+          <strong>Aguardando dados reais</strong>
+          <p style={text}>Registre alunos, treinos e sets validos para gerar insights DG TEAM.</p>
+        </div>
+      )}
 
       <button style={button}>Abrir assistente DG</button>
     </div>
@@ -67,6 +80,18 @@ const item = {
 };
 
 const text = { color: '#aaa', margin: '7px 0 0', lineHeight: 1.45 };
+
+const pill = {
+  display: 'inline-block',
+  background: '#180909',
+  border: '1px solid #351111',
+  color: '#ffb8b8',
+  borderRadius: 99,
+  padding: '6px 9px',
+  fontSize: 11,
+  fontWeight: 900,
+  marginTop: 10
+};
 
 const button = {
   background: '#e01616',
