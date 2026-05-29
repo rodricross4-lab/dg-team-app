@@ -1,4 +1,4 @@
-import type { WorkoutSession } from '../types';
+import type { GeneratedWorkout } from '../types';
 
 const weeks = Array.from({ length: 8 }, (_, index) => index + 1);
 const workoutNames = ['Treino A', 'Treino B', 'Treino C', 'Treino D', 'Treino E', 'Treino F'];
@@ -11,7 +11,7 @@ const defaultExercises = [
   { name: 'Elevação lateral cabo', group: 'Deltoide lateral', range: '10-20', rest: '60-90s' }
 ];
 
-export function createEightWeekCycle(frequency: number): WorkoutSession[] {
+export function createEightWeekCycle(frequency: number): GeneratedWorkout[] {
   const selectedWorkouts = workoutNames.slice(0, frequency);
 
   return weeks.flatMap((week) =>

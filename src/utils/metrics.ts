@@ -1,6 +1,6 @@
-import type { WorkoutSession } from '../types';
+import type { GeneratedWorkout } from '../types';
 
-export function countValidSets(workouts: WorkoutSession[]): number {
+export function countValidSets(workouts: GeneratedWorkout[]): number {
   return workouts.reduce((total, workout) => {
     return (
       total +
@@ -14,7 +14,7 @@ export function countValidSets(workouts: WorkoutSession[]): number {
   }, 0);
 }
 
-export function calculateWorkoutVolumeLoad(workouts: WorkoutSession[]): number {
+export function calculateWorkoutVolumeLoad(workouts: GeneratedWorkout[]): number {
   return workouts.reduce((total, workout) => {
     return (
       total +

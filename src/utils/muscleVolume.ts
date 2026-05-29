@@ -1,6 +1,6 @@
-import type { WorkoutSession } from '../types';
+import type { GeneratedWorkout } from '../types';
 
-export function calculateVolumePerMuscle(workouts: WorkoutSession[]) {
+export function calculateVolumePerMuscle(workouts: GeneratedWorkout[]) {
   const volume: Record<string, number> = {};
 
   workouts.forEach((workout) => {
