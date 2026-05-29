@@ -10,7 +10,7 @@ type LogEntry = {
   execution: string;
 };
 
-function loadStudentLogs(studentId: number): LogEntry[] {
+function loadStudentLogs(studentId: string): LogEntry[] {
   try {
     const raw = localStorage.getItem(`${LOG_KEY}-${studentId}`);
     return raw ? JSON.parse(raw) : [];
@@ -19,7 +19,7 @@ function loadStudentLogs(studentId: number): LogEntry[] {
   }
 }
 
-export function getRealDashboardMetrics(studentIds: number[]) {
+export function getRealDashboardMetrics(studentIds: string[]) {
   const operational = loadOperationalStore();
   const allLogs = studentIds.flatMap((studentId) => loadStudentLogs(studentId));
 
@@ -43,7 +43,7 @@ export function getRealDashboardMetrics(studentIds: number[]) {
   };
 }
 
-export function getDashboardAlerts(studentIds: number[]) {
+export function getDashboardAlerts(studentIds: string[]) {
   const metrics = getRealDashboardMetrics(studentIds);
   const alerts: string[] = [];
 

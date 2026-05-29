@@ -3,11 +3,11 @@ import type { Student } from '../types';
 export function generateStudentInsights(student: Student) {
   const insights: string[] = [];
 
-  if (student.frequency >= 5) {
+  if (student.training_frequency >= 5) {
     insights.push('Frequência elevada. Monitorar recuperação e qualidade das séries válidas.');
   }
 
-  if (student.priority.length >= 2) {
+  if (student.priority_muscles.length >= 2) {
     insights.push('Mais de um músculo prioritário. Ajustar distribuição de volume semanal.');
   }
 
@@ -15,7 +15,7 @@ export function generateStudentInsights(student: Student) {
     insights.push('Priorizar manutenção de performance durante déficit calórico.');
   }
 
-  if (student.alerts.length > 0) {
+  if ((student.alerts ?? []).length > 0) {
     insights.push('Aluno possui alertas ativos. Revisar recuperação e aderência semanalmente.');
   }
 

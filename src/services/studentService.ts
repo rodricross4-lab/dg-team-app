@@ -86,12 +86,12 @@ export async function saveStudent(studentDraft: StudentDraft) {
 }
 
 export async function archiveStudent(studentId: string) {
-  const next = readLocalStudents().map((student) => {
+  const next: Student[] = readLocalStudents().map((student) => {
     if (student.id !== studentId) return student;
 
     return {
       ...student,
-      status: 'inactive',
+      status: 'inactive' as const,
       deleted_at: nowIso(),
       updated_at: nowIso(),
     };
