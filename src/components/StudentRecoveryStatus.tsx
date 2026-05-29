@@ -1,29 +1,36 @@
-const recoveryItems = [
-  ['Fadiga geral', 'Controlada', 'Manter intensidade sem aumentar volume nesta semana.'],
-  ['Lower body', 'Atenção', 'Monitorar queda de performance em quadríceps e posteriores.'],
-  ['Sono/check-in', 'Pendente', 'Cobrar atualização de sono, peso e percepção de recuperação.'],
-  ['Deload', 'Não indicado', 'Reavaliar se houver nova queda em exercícios compostos.']
-];
+import { getRecoveryInsights } from '../services/analyticsService';
 
-export default function StudentRecoveryStatus() {
+type Props = {
+  studentId?: string;
+};
+
+export default function StudentRecoveryStatus({ studentId }: Props) {
+  const recoveryItems = getRecoveryInsights(4, studentId);
+
   return (
     <div style={panel}>
       <div style={head}>
         <div>
-          <h2 style={{ margin: 0 }}>Status de recuperação</h2>
-          <p style={sub}>Leitura DG TEAM de fadiga, recuperação e tolerância de volume.</p>
+          <h2 style={{ margin: 0 }}>Status de recuperacao</h2>
+          <p style={sub}>Leitura DG TEAM de fadiga, recuperacao e tolerancia de volume.</p>
         </div>
         <span style={tag}>RECOVERY</span>
       </div>
 
       <div style={grid}>
-        {recoveryItems.map(([area, status, action]) => (
-          <div key={area} style={card}>
-            <p style={label}>{area}</p>
-            <strong style={valueStyle}>{status}</strong>
-            <span style={noteStyle}>{action}</span>
+        {recoveryItems.length ? recoveryItems.map((alert) => (
+          <div key={`${alert.title}-${alert.detail}`} style={card}>
+            <p style={label}>{alert.action}</p>
+            <strong style={valueStyle}>{alert.title}</strong>
+            <span style={noteStyle}>{alert.detail}</span>
           </div>
-        ))}
+        )) : (
+          <div style={card}>
+            <p style={label}>Logbook</p>
+            <strong style={valueStyle}>Sem alerta</strong>
+            <span style={noteStyle}>Registre sets validos para leitura real de recuperacao.</span>
+          </div>
+        )}
       </div>
     </div>
   );
