@@ -1,5 +1,5 @@
-import type { LogbookSet, WorkoutSession } from '../types';
-import { calculateValidVolume, calculateVolumeLoad, isValidSet } from '../utils/dgTrainingRules';
+import type { ExerciseSessionGroup, LogbookSet, WorkoutSession } from '../types';
+import { calculateValidVolume, calculateVolumeLoad, getBestValidSet, isValidSet } from '../utils/dgTrainingRules';
 import { enqueueSync } from './offlineSyncEngine';
 import { getSupabaseMissingMessage, isSupabaseReady } from './supabaseService';
 
@@ -36,8 +36,18 @@ function writeLocalSets(sets: LogbookSet[]) {
   localStorage.setItem(SET_STORAGE_KEY, JSON.stringify(sets));
 }
 
+export function getStoredWorkoutSessions(studentId?: string) {
+  const sessions = readSessions();
+  return studentId ? sessions.filter((session) => session.student_id === studentId) : sessions;
+}
+
+export function getStoredLogbookSets(studentId?: string) {
+  const sets = readLocalSets();
+  return studentId ? sets.filter((set) => set.student_id === studentId) : sets;
+}
+
 export async function listWorkoutSessions(studentId?: string) {
-  const all = readSessions();
+  const all = getStoredWorkoutSessions();
 
   return {
     source: isSupabaseReady() ? 'supabase-ready' as const : 'local' as const,
@@ -116,7 +126,7 @@ export async function finishWorkoutSession(sessionId: string) {
 }
 
 export async function listLogbookSets(studentId?: string) {
-  const all = readLocalSets();
+  const all = getStoredLogbookSets();
   const data = studentId ? all.filter((set) => set.student_id === studentId) : all;
 
   return {
@@ -184,4 +194,49 @@ export function getEffectiveVolume(sets: LogbookSet[]) {
 
 export function getVolumeLoad(sets: LogbookSet[]) {
   return calculateVolumeLoad(sets);
+}
+
+export function getExerciseHistory(studentId: string, exerciseId: string) {
+  return getStoredLogbookSets(studentId)
+    .filter((set) => set.exercise_id === exerciseId && isValidSet(set))
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
+export function getExerciseSessionGroups(studentId: string, exerciseId: string): ExerciseSessionGroup[] {
+  const sessions = getStoredWorkoutSessions(studentId);
+  const sessionsById = new Map(sessions.map((session) => [session.id, session]));
+  const grouped = new Map<string, LogbookSet[]>();
+
+  getExerciseHistory(studentId, exerciseId).forEach((set) => {
+    const current = grouped.get(set.session_id) || [];
+    grouped.set(set.session_id, [...current, set]);
+  });
+
+  return Array.from(grouped.entries())
+    .map(([sessionId, sets]) => {
+      const session = sessionsById.get(sessionId);
+      const performedAt = session?.performed_at || sets[0]?.created_at || '';
+
+      return {
+        session_id: sessionId,
+        performed_at: performedAt,
+        sets,
+        validSets: calculateValidVolume(sets),
+        volumeLoad: calculateVolumeLoad(sets),
+        bestSet: getBestValidSet(sets),
+      };
+    })
+    .sort((a, b) => new Date(b.performed_at).getTime() - new Date(a.performed_at).getTime());
+}
+
+export function getPreviousExerciseSets(studentId: string, exerciseId: string, currentSessionId: string) {
+  const currentSession = getStoredWorkoutSessions(studentId).find((session) => session.id === currentSessionId);
+  const currentTime = currentSession ? new Date(currentSession.performed_at).getTime() : Number.POSITIVE_INFINITY;
+
+  const previousGroup = getExerciseSessionGroups(studentId, exerciseId).find((group) => {
+    if (group.session_id === currentSessionId) return false;
+    return new Date(group.performed_at).getTime() <= currentTime;
+  });
+
+  return previousGroup?.sets || [];
 }

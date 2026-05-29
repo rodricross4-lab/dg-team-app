@@ -40,6 +40,15 @@ export type PersonalRecord = {
   message: string;
 };
 
+export type ExerciseSessionGroup = {
+  session_id: string;
+  performed_at: string;
+  sets: LogbookSet[];
+  validSets: number;
+  volumeLoad: number;
+  bestSet: LogbookSet | null;
+};
+
 export type ProgressionSuggestion = {
   increaseLoad: boolean;
   maintainLoad: boolean;
