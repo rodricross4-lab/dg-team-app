@@ -33,3 +33,10 @@ export type ExerciseTrendPoint = {
   volumeLoad: number;
   executionQuality?: number;
 };
+
+export type CommandCenterInsight = {
+  title: string;
+  detail: string;
+  action: string;
+  severity: 'info' | 'success' | 'warning' | 'danger';
+};
