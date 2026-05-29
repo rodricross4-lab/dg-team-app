@@ -3,13 +3,17 @@ import StudentPRTimeline from './StudentPRTimeline';
 import StudentRecoveryStatus from './StudentRecoveryStatus';
 import StudentWeeklyVolume from './StudentWeeklyVolume';
 
-export default function StudentIntelligencePanel() {
+type Props = {
+  studentId?: string;
+};
+
+export default function StudentIntelligencePanel({ studentId }: Props) {
   return (
     <div>
       <StudentPerformanceDashboard />
       <StudentWeeklyVolume />
-      <StudentRecoveryStatus />
-      <StudentPRTimeline />
+      <StudentRecoveryStatus studentId={studentId} />
+      <StudentPRTimeline studentId={studentId} />
     </div>
   );
 }
