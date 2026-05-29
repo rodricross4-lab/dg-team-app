@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { getStudentWorkouts, upsertWorkout } from '../store/operationalStore';
 
-type Props = { studentId: number };
+type Props = { studentId: string };
 
 type ExerciseRow = {
   id: number;

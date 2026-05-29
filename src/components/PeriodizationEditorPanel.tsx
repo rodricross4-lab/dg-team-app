@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { getStudentPeriodization, upsertPeriodizationWeek } from '../store/operationalStore';
 
-type Props = { studentId: number };
+type Props = { studentId: string };
 
 type WeekPlan = {
   week: number;
@@ -12,7 +12,7 @@ type WeekPlan = {
   notes: string;
 };
 
-function createDefaultWeeks(studentId: number): WeekPlan[] {
+function createDefaultWeeks(studentId: string): WeekPlan[] {
   const saved = getStudentPeriodization(studentId);
 
   return Array.from({ length: 8 }, (_, index) => {

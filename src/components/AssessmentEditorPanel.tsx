@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { getStudentAssessments, upsertAssessment } from '../store/operationalStore';
 
-type Props = { studentId: number };
+type Props = { studentId: string };
 type AssessmentWeek = 1 | 4 | 8;
 
 const phases: AssessmentWeek[] = [1, 4, 8];
