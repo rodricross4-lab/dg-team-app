@@ -1,32 +1,42 @@
-const prs = [
-  ['Semana 1', 'PR técnico', 'Hack machine com mais amplitude e controle.'],
-  ['Semana 2', 'PR de reps', 'Supino inclinado: +2 reps mantendo execução.'],
-  ['Semana 3', 'PR de carga', 'Hip thrust: +10kg no ciclo atual.'],
-  ['Semana 4', 'PR consolidado', 'Remada articulada repetida com mais estabilidade.']
-];
+import { getRecentPRInsights } from '../services/analyticsService';
 
-export default function StudentPRTimeline() {
+type Props = {
+  studentId?: string;
+};
+
+export default function StudentPRTimeline({ studentId }: Props) {
+  const prs = getRecentPRInsights(6, studentId);
+
   return (
     <div style={panel}>
       <div style={head}>
         <div>
           <h2 style={{ margin: 0 }}>Timeline de PRs</h2>
-          <p style={sub}>Histórico de evolução por carga, reps, técnica e consolidação.</p>
+          <p style={sub}>Historico de evolucao por carga, reps, tecnica e consolidacao.</p>
         </div>
         <span style={tag}>PRS</span>
       </div>
 
       <div style={list}>
-        {prs.map(([week, type, detail]) => (
-          <div key={`${week}-${type}`} style={row}>
+        {prs.length ? prs.map((pr) => (
+          <div key={`${pr.title}-${pr.detail}`} style={row}>
             <div style={dot} />
             <div>
-              <span style={weekText}>{week}</span>
-              <strong style={titleText}>{type}</strong>
-              <p style={detailText}>{detail}</p>
+              <span style={weekText}>{new Date().toLocaleDateString('pt-BR')}</span>
+              <strong style={titleText}>{pr.title}</strong>
+              <p style={detailText}>{pr.detail}</p>
             </div>
           </div>
-        ))}
+        )) : (
+          <div style={row}>
+            <div style={dot} />
+            <div>
+              <span style={weekText}>Aguardando logbook</span>
+              <strong style={titleText}>Sem PR real ainda</strong>
+              <p style={detailText}>Registre sessoes validas para criar a timeline automatica deste aluno.</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
