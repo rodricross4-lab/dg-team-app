@@ -4,14 +4,23 @@ import { isSupabaseConfigured, supabase } from './supabaseClient';
 
 const LOG_KEY = 'dg-team-logbook-store';
 
-function loadLogbookEntries() {
+type LocalLogbookEntry = {
+  exerciseId: string;
+  load: string;
+  reps: string;
+  rir: string;
+  execution: string;
+  student_id_local: string;
+};
+
+function loadLogbookEntries(): LocalLogbookEntry[] {
   return Object.keys(localStorage)
     .filter((key) => key.startsWith(LOG_KEY))
     .flatMap((key) => {
       try {
-        const studentId = Number(key.replace(`${LOG_KEY}-`, ''));
-        const entries = JSON.parse(localStorage.getItem(key) || '[]');
-        return entries.map((entry: any) => ({ ...entry, student_id_local: studentId }));
+        const studentId = key.replace(`${LOG_KEY}-`, '');
+        const entries = JSON.parse(localStorage.getItem(key) || '[]') as Omit<LocalLogbookEntry, 'student_id_local'>[];
+        return entries.map((entry) => ({ ...entry, student_id_local: studentId }));
       } catch {
         return [];
       }
@@ -37,11 +46,11 @@ function getCloudResult(module: string, ok: boolean, count: number, message: str
   };
 }
 
-async function safeUpsert(module: string, table: string, rows: any[]) {
+async function safeUpsert(module: string, table: string, rows: Record<string, unknown>[]) {
   if (!isSupabaseConfigured() || !supabase) return getCloudDisabledResult(module);
   if (rows.length === 0) return getCloudResult(module, true, 0, `${module}: nenhum registro para sincronizar.`);
 
-  const { error } = await supabase.from(table).upsert(rows as any);
+  const { error } = await supabase.from(table).upsert(rows);
 
   if (error) return getCloudResult(module, false, rows.length, error.message);
   return getCloudResult(module, true, rows.length, `${module}: ${rows.length} registro(s) sincronizados.`);
@@ -49,17 +58,27 @@ async function safeUpsert(module: string, table: string, rows: any[]) {
 
 export async function syncStudentsToCloud() {
   const store = loadAppStore();
-  const rows = store.students.map((student: any) => ({
+  const rows = store.students.map((student) => ({
     id: student.id,
+    tenant_id: student.tenant_id,
+    coach_id: student.coach_id,
+    user_id: student.user_id ?? null,
     name: student.name,
-    age: student.age,
-    weight: student.weight,
-    height: student.height,
+    email: student.email ?? null,
+    phone: student.phone ?? null,
+    birth_date: student.birth_date ?? null,
+    age: student.age ?? null,
+    weight_kg: student.weight_kg ?? null,
+    height_cm: student.height_cm ?? null,
     goal: student.goal,
     phase: student.phase,
-    frequency: student.frequency,
-    priority: student.priority || [],
-    updated_at: new Date().toISOString()
+    training_frequency: student.training_frequency,
+    priority_muscles: student.priority_muscles,
+    alerts: student.alerts ?? [],
+    status: student.status,
+    created_at: student.created_at,
+    updated_at: student.updated_at,
+    deleted_at: student.deleted_at ?? null
   }));
 
   return safeUpsert('students', 'students', rows);
@@ -67,7 +86,7 @@ export async function syncStudentsToCloud() {
 
 export async function syncWorkoutsToCloud() {
   const store = loadOperationalStore();
-  const rows = store.workouts.map((workout: any) => ({
+  const rows = store.workouts.map((workout) => ({
     id: workout.id,
     student_id: workout.studentId,
     week: workout.week,
@@ -81,7 +100,7 @@ export async function syncWorkoutsToCloud() {
 
 export async function syncAssessmentsToCloud() {
   const store = loadOperationalStore();
-  const rows = store.assessments.map((assessment: any) => ({
+  const rows = store.assessments.map((assessment) => ({
     student_id: assessment.studentId,
     week: assessment.week,
     weight: assessment.weight,
@@ -97,7 +116,7 @@ export async function syncAssessmentsToCloud() {
 
 export async function syncPeriodizationToCloud() {
   const store = loadOperationalStore();
-  const rows = store.periodization.map((week: any) => ({
+  const rows = store.periodization.map((week) => ({
     student_id: week.studentId,
     week: week.week,
     focus: week.focus,
@@ -113,7 +132,7 @@ export async function syncPeriodizationToCloud() {
 
 export async function syncLogbookToCloud() {
   const entries = loadLogbookEntries();
-  const rows = entries.map((entry: any) => ({
+  const rows = entries.map((entry) => ({
     student_id: entry.student_id_local,
     exercise_id: entry.exerciseId,
     load: entry.load,

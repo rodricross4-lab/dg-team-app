@@ -8,7 +8,7 @@ type LogEntry = {
   execution: string;
 };
 
-function loadLogs(studentId: number): LogEntry[] {
+function loadLogs(studentId: string): LogEntry[] {
   try {
     const raw = localStorage.getItem(`${LOG_KEY}-${studentId}`);
     return raw ? JSON.parse(raw) : [];
@@ -17,7 +17,7 @@ function loadLogs(studentId: number): LogEntry[] {
   }
 }
 
-export function getStudentPRSummary(studentId: number) {
+export function getStudentPRSummary(studentId: string) {
   const logs = loadLogs(studentId);
   const validLogs = logs.filter((log) => Number(log.load) > 0 && Number(log.reps) > 0);
 
@@ -35,7 +35,7 @@ export function getStudentPRSummary(studentId: number) {
   };
 }
 
-export function getPRMessage(studentId: number) {
+export function getPRMessage(studentId: string) {
   const summary = getStudentPRSummary(studentId);
 
   if (!summary.hasPR) {

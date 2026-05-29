@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { StudentPhase, StudentStatus } from '../types';
 import { cloudDataService } from '../services/cloudDataService';
 
 export type CloudStudent = {
   id: string;
   name: string;
-  email?: string;
-  phone?: string;
+  email?: string | null;
+  phone?: string | null;
   goal?: string;
-  phase?: string;
-  frequency?: number;
-  status?: string;
-  priority?: string[];
+  phase?: StudentPhase;
+  training_frequency?: number;
+  status?: StudentStatus;
+  priority_muscles?: string[];
 };
 
 export function useCloudStudents() {
