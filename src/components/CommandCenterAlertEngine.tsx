@@ -1,11 +1,8 @@
-const alerts = [
-  ['Baixa frequência', '2 alunos abaixo da meta semanal', 'Contato rápido'],
-  ['Queda de performance', '1 aluno com queda em exercícios compostos', 'Revisar recuperação'],
-  ['Check-in atrasado', '3 atualizações pendentes', 'Cobrar hoje'],
-  ['Volume sensível', 'Quadríceps próximo do limite recuperável', 'Monitorar sessão']
-];
+import { getAlertInsights } from '../services/analyticsService';
 
 export default function CommandCenterAlertEngine() {
+  const alerts = getAlertInsights();
+
   return (
     <div style={panel}>
       <div style={head}>
@@ -16,13 +13,18 @@ export default function CommandCenterAlertEngine() {
         <span style={tag}>ALERTAS</span>
       </div>
 
-      {alerts.map(([title, detail, action]) => (
-        <div key={title} style={item}>
-          <strong>{title}</strong>
-          <p style={text}>{detail}</p>
-          <span style={pill}>{action}</span>
+      {alerts.length ? alerts.map((alert) => (
+        <div key={`${alert.title}-${alert.detail}`} style={item}>
+          <strong>{alert.title}</strong>
+          <p style={text}>{alert.detail}</p>
+          <span style={pill}>{alert.action}</span>
         </div>
-      ))}
+      )) : (
+        <div style={item}>
+          <strong>Sem alerta operacional</strong>
+          <p style={text}>Os dados atuais nao indicam risco critico no dashboard.</p>
+        </div>
+      )}
     </div>
   );
 }
