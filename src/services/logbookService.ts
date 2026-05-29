@@ -83,7 +83,7 @@ export async function startWorkoutSession(params: {
   const next = [session, ...readSessions()];
   writeSessions(next);
 
-  enqueueSync('workout', 'create', session);
+  enqueueSync('workout_session', 'create', session);
 
   return {
     source: isSupabaseReady() ? 'supabase-ready' as const : 'local' as const,
@@ -113,7 +113,7 @@ export async function finishWorkoutSession(sessionId: string) {
   writeSessions(next);
 
   if (updatedSession) {
-    enqueueSync('workout', 'update', updatedSession);
+    enqueueSync('workout_session', 'update', updatedSession);
   }
 
   return {

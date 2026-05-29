@@ -1,5 +1,5 @@
 export type SyncAction = 'create' | 'update' | 'delete' | 'archive';
-export type SyncEntity = 'student' | 'workout' | 'logbook_set' | 'pr' | 'assessment' | 'checkin' | 'photo';
+export type SyncEntity = 'student' | 'workout' | 'workout_session' | 'logbook_set' | 'pr' | 'assessment' | 'checkin' | 'photo';
 
 export type SyncQueueItem = {
   id: string;
@@ -52,6 +52,15 @@ export function listSyncQueue() {
 
 export function getPendingSyncQueue() {
   return readQueue().filter((item) => item.status === 'pending' || item.status === 'failed');
+}
+
+export function markSyncing(itemId: string) {
+  const now = new Date().toISOString();
+  const next = readQueue().map((item) =>
+    item.id === itemId ? { ...item, status: 'syncing' as const, updatedAt: now } : item
+  );
+  writeQueue(next);
+  return next;
 }
 
 export function markSyncDone(itemId: string) {

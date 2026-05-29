@@ -6,10 +6,39 @@ type AdapterResult = {
   message: string;
 };
 
-function getTableName(entity: SyncQueueItem['entity']) {
+type SyncPayload = Record<string, unknown>;
+
+function isPayload(value: unknown): value is SyncPayload {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getPayload(item: SyncQueueItem): SyncPayload {
+  if (!isPayload(item.payload)) {
+    throw new Error(`Payload invalido para ${item.entity}.`);
+  }
+
+  return item.payload;
+}
+
+function getPayloadId(payload: SyncPayload) {
+  return typeof payload.id === 'string' && payload.id ? payload.id : null;
+}
+
+function isWorkoutSessionPayload(payload: SyncPayload) {
+  return 'performed_at' in payload || ('status' in payload && 'workout_id' in payload);
+}
+
+function getTableName(item: SyncQueueItem) {
+  const payload = isPayload(item.payload) ? item.payload : {};
+
+  if (item.entity === 'workout' && isWorkoutSessionPayload(payload)) {
+    return 'workout_sessions';
+  }
+
   const tableMap: Record<SyncQueueItem['entity'], string> = {
     student: 'students',
     workout: 'workouts',
+    workout_session: 'workout_sessions',
     logbook_set: 'logbook_sets',
     pr: 'prs',
     assessment: 'assessments',
@@ -17,30 +46,49 @@ function getTableName(entity: SyncQueueItem['entity']) {
     photo: 'photos'
   };
 
-  return tableMap[entity];
+  return tableMap[item.entity];
 }
 
-function getPayloadId(payload: unknown) {
-  if (payload && typeof payload === 'object' && 'id' in payload) {
-    return String((payload as { id: string }).id);
+function mapWorkoutPayload(payload: SyncPayload): SyncPayload {
+  if ('studentId' in payload || 'updatedAt' in payload) {
+    return {
+      id: payload.id,
+      student_id: payload.studentId,
+      week: payload.week,
+      name: payload.name,
+      notes: payload.notes ?? null,
+      exercises: payload.exercises ?? [],
+      updated_at: payload.updatedAt ?? new Date().toISOString()
+    };
   }
 
-  return null;
+  return payload;
+}
+
+function mapPayloadForSupabase(item: SyncQueueItem, tableName: string): SyncPayload {
+  const payload = getPayload(item);
+
+  if (tableName === 'workouts') {
+    return mapWorkoutPayload(payload);
+  }
+
+  return payload;
 }
 
 export async function syncQueueItemToSupabase(item: SyncQueueItem): Promise<AdapterResult> {
   if (!isSupabaseReady()) {
     return {
       ok: false,
-      message: 'Supabase não configurado.'
+      message: 'Supabase nao configurado.'
     };
   }
 
   const supabase = getSupabaseClient();
-  const tableName = getTableName(item.entity);
+  const tableName = getTableName(item);
+  const payload = getPayload(item);
 
   if (item.action === 'delete') {
-    const id = getPayloadId(item.payload);
+    const id = getPayloadId(payload);
 
     if (!id) {
       return {
@@ -61,7 +109,37 @@ export async function syncQueueItemToSupabase(item: SyncQueueItem): Promise<Adap
     };
   }
 
-  const { error } = await supabase.from(tableName).upsert(item.payload as Record<string, unknown>);
+  if (item.action === 'archive') {
+    const id = getPayloadId(payload);
+
+    if (!id) {
+      return {
+        ok: false,
+        message: `Archive sem ID para ${tableName}.`
+      };
+    }
+
+    const { error } = await supabase
+      .from(tableName)
+      .update({
+        status: 'inactive',
+        deleted_at: payload.deleted_at ?? new Date().toISOString(),
+        updated_at: payload.updated_at ?? new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (error) {
+      return { ok: false, message: error.message };
+    }
+
+    return {
+      ok: true,
+      message: `${tableName} arquivado na nuvem.`
+    };
+  }
+
+  const row = mapPayloadForSupabase(item, tableName);
+  const { error } = await supabase.from(tableName).upsert(row);
 
   if (error) {
     return { ok: false, message: error.message };
