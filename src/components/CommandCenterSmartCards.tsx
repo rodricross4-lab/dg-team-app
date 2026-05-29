@@ -1,11 +1,8 @@
-const cards = [
-  ['Aderência semanal', '76%', '+8% vs semana anterior'],
-  ['Performance média', 'Alta', 'Cargas estáveis no ciclo'],
-  ['Risco de queda', '2 alunos', 'Exigem contato hoje'],
-  ['PRs recentes', '3', 'Progressão confirmada']
-];
+import { getSmartCardMetrics } from '../services/analyticsService';
 
 export default function CommandCenterSmartCards() {
+  const cards = getSmartCardMetrics();
+
   return (
     <div style={grid}>
       {cards.map(([title, value, note]) => (
