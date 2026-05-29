@@ -5,7 +5,11 @@ import { archiveStudent, fetchStudents, saveStudent } from '../services/studentS
 const DEFAULT_TENANT_ID = 'local-tenant';
 const DEFAULT_COACH_ID = 'local-coach';
 
-export default function StudentCrudPanel() {
+type Props = {
+  onStudentsChange?: (students: Student[]) => void;
+};
+
+export default function StudentCrudPanel({ onStudentsChange }: Props) {
   const [students, setStudents] = useState<Student[]>([]);
   const [name, setName] = useState('');
   const [status, setStatus] = useState('Carregando alunos...');
@@ -13,6 +17,7 @@ export default function StudentCrudPanel() {
   async function refreshStudents() {
     const result = await fetchStudents();
     setStudents(result.data);
+    onStudentsChange?.(result.data);
     setStatus(result.warning);
   }
 
@@ -35,7 +40,11 @@ export default function StudentCrudPanel() {
       status: 'active',
     });
 
-    setStudents((current) => [result.data, ...current.filter((student) => student.id !== result.data.id)]);
+    setStudents((current) => {
+      const next = [result.data, ...current.filter((student) => student.id !== result.data.id)];
+      onStudentsChange?.(next);
+      return next;
+    });
     setStatus(result.warning);
     setName('');
   }
@@ -46,13 +55,19 @@ export default function StudentCrudPanel() {
       name: `${student.name} editado`,
     });
 
-    setStudents((current) => current.map((item) => (item.id === student.id ? result.data : item)));
+    setStudents((current) => {
+      const next = current.map((item) => (item.id === student.id ? result.data : item));
+      onStudentsChange?.(next);
+      return next;
+    });
     setStatus(result.warning);
   }
 
   async function handleArchive(id: string) {
     const result = await archiveStudent(id);
-    setStudents(result.data.filter((student) => student.deleted_at == null));
+    const visibleStudents = result.data.filter((student) => student.deleted_at == null);
+    setStudents(visibleStudents);
+    onStudentsChange?.(visibleStudents);
     setStatus(result.warning);
   }
 
