@@ -21,6 +21,14 @@ function writeLocalStudents(students: Student[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
 }
 
+export function getStoredStudents(options: { includeArchived?: boolean } = {}) {
+  const students = readLocalStudents();
+
+  return options.includeArchived
+    ? students
+    : students.filter((student) => student.deleted_at == null);
+}
+
 function normalizeStudent(student: StudentDraft): Student {
   const timestamp = nowIso();
 
@@ -54,7 +62,7 @@ export async function fetchStudents() {
     warning: isSupabaseReady()
       ? 'Sync Supabase habilitado.'
       : getSupabaseMissingMessage(),
-    data: readLocalStudents().filter((student) => student.deleted_at == null)
+    data: getStoredStudents()
   };
 }
 
