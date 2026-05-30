@@ -1,5 +1,5 @@
 import { loadOperationalStore, type EditableExercise } from '../store/operationalStore';
-import type { CommandCenterInsight, DashboardSummary, ExerciseTrendPoint, LogbookSet, MuscleVolume, RecentPR, Student } from '../types';
+import type { CommandCenterInsight, DashboardSummary, ExerciseTrendPoint, LogbookSet, MuscleVolume, RecentPR, Student, StudentRecoveryScore } from '../types';
 import { analyzeProgression, analyzeRecovery } from '../utils/dgTrainingRules';
 import { getExerciseSessionGroups, getStoredLogbookSets, getStoredWorkoutSessions } from './logbookService';
 import { getStoredStudents } from './studentService';
@@ -200,6 +200,73 @@ export function getStudentsAtRisk(students: Student[]) {
   ));
 }
 
+function getStudentRiskReasons(student: Student) {
+  const weeklySets = getWeeklyValidSets(student.id);
+  const lowQualitySets = weeklySets.filter((set) => (set.execution_quality || 0) > 0 && (set.execution_quality || 0) <= 2);
+  const hasWorkout = loadOperationalStore().workouts.some((workout) => workout.studentId === student.id);
+  const reasons: string[] = [];
+
+  if (student.alerts?.length) reasons.push(student.alerts[0]);
+  if (lowQualitySets.length) reasons.push(`${lowQualitySets.length} set(s) com execucao baixa nos ultimos 7 dias.`);
+  if (hasWorkout && weeklySets.length === 0) reasons.push('Aluno com treino ativo sem sets validos recentes.');
+
+  return reasons;
+}
+
+export function getStudentRiskInsights(limit = 4, students = getStoredStudents()): CommandCenterInsight[] {
+  return getStudentsAtRisk(students)
+    .map((student) => {
+      const reasons = getStudentRiskReasons(student);
+
+      return {
+        title: 'Aluno em alerta',
+        detail: reasons.join(' ') || 'Aluno ativo precisa de revisao operacional.',
+        action: student.name,
+        severity: reasons.length > 1 ? 'danger' as const : 'warning' as const,
+      };
+    })
+    .slice(0, limit);
+}
+
+export function getRecoveryScores(students = getStoredStudents()): StudentRecoveryScore[] {
+  return students
+    .filter(isActiveStudent)
+    .map((student) => {
+      const reasons = getStudentRiskReasons(student);
+      const weeklySets = getWeeklyValidSets(student.id);
+      const qualitySets = weeklySets.filter((set) => set.execution_quality);
+      const averageQuality = qualitySets.length
+        ? qualitySets.reduce((total, set) => total + (set.execution_quality || 0), 0) / qualitySets.length
+        : 0;
+      const hasWorkout = loadOperationalStore().workouts.some((workout) => workout.studentId === student.id);
+      let score = 100;
+
+      if (student.alerts?.length) score -= 15;
+      if (hasWorkout && weeklySets.length === 0) score -= 30;
+      if (averageQuality > 0 && averageQuality < 3) score -= 25;
+      if (weeklySets.length > 0 && weeklySets.length < 3) score -= 10;
+      if (reasons.length > 1) score -= 10;
+
+      const finalScore = Math.max(0, Math.min(100, Math.round(score)));
+      const level: StudentRecoveryScore['level'] = finalScore < 45
+        ? 'critical'
+        : finalScore < 65
+          ? 'risk'
+          : finalScore < 80
+            ? 'watch'
+            : 'good';
+
+      return {
+        student_id: student.id,
+        studentName: student.name,
+        score: finalScore,
+        level,
+        reasons: reasons.length ? reasons : ['Sem sinais relevantes de fadiga no logbook recente.'],
+      };
+    })
+    .sort((a, b) => a.score - b.score);
+}
+
 export function getDashboardSummary(students: Student[]): DashboardSummary {
   const activeStudents = students.filter(isActiveStudent);
   const activeStudentIds = new Set(activeStudents.map((student) => student.id));
@@ -325,15 +392,7 @@ export function getRecoveryInsights(limit = 4, studentId?: string): CommandCente
     return insights.slice(0, limit);
   }
 
-  return getStudentsAtRisk(getStoredStudents())
-    .filter((student) => !studentId || student.id === studentId)
-    .slice(0, limit)
-    .map((student) => ({
-    title: 'Aluno em alerta',
-    detail: student.alerts?.[0] || 'Sem sets validos recentes para aluno com treino ativo.',
-    action: student.name,
-    severity: 'warning',
-  }));
+  return getStudentRiskInsights(limit, getStoredStudents().filter((student) => !studentId || student.id === studentId));
 }
 
 export function getAlertInsights(students = getStoredStudents(), limit = 4): CommandCenterInsight[] {

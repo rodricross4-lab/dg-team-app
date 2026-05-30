@@ -1,5 +1,5 @@
 import type { CommandCenterInsight } from '../types';
-import { getRecoveryInsights } from '../services/analyticsService';
+import { getRecoveryInsights, getRecoveryScores } from '../services/analyticsService';
 
 function getItemStyle(severity: CommandCenterInsight['severity']) {
   if (severity === 'danger') return dangerItem;
@@ -10,6 +10,7 @@ function getItemStyle(severity: CommandCenterInsight['severity']) {
 
 export default function CommandCenterRecoveryEngine() {
   const recovery = getRecoveryInsights();
+  const scores = getRecoveryScores().slice(0, 3);
 
   return (
     <div style={panel}>
@@ -20,6 +21,18 @@ export default function CommandCenterRecoveryEngine() {
         </div>
         <span style={tag}>RECOVERY</span>
       </div>
+
+      {scores.length > 0 && (
+        <div style={scoreGrid}>
+          {scores.map((score) => (
+            <div key={score.student_id} style={scoreCard}>
+              <strong>{score.studentName}</strong>
+              <p style={scoreValue}>{score.score}</p>
+              <span style={muted}>{score.level}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {recovery.length ? recovery.map((alert) => (
         <div key={`${alert.title}-${alert.detail}`} style={getItemStyle(alert.severity)}>
@@ -71,3 +84,6 @@ const warningItem = { ...item, border: '1px solid #5a3b0b', color: '#ffe3a3' };
 const dangerItem = { ...item, border: '1px solid #5a1515', color: '#ffb8b8' };
 const text = { color: '#aaa', margin: '7px 0 0', lineHeight: 1.45 };
 const muted = { color: '#ffb8b8', fontSize: 12, fontWeight: 900 };
+const scoreGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 10, marginBottom: 12 };
+const scoreCard = { ...item, marginBottom: 0 };
+const scoreValue = { color: '#fff', fontSize: 26, margin: '8px 0 2px', fontWeight: 900 };

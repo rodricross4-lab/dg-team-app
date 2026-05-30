@@ -40,3 +40,11 @@ export type CommandCenterInsight = {
   action: string;
   severity: 'info' | 'success' | 'warning' | 'danger';
 };
+
+export type StudentRecoveryScore = {
+  student_id: string;
+  studentName: string;
+  score: number;
+  level: 'good' | 'watch' | 'risk' | 'critical';
+  reasons: string[];
+};

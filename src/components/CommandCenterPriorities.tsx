@@ -3,6 +3,7 @@ import {
   getProgressionInsights,
   getRecentPRInsights,
   getRecoveryInsights,
+  getStudentRiskInsights,
 } from '../services/analyticsService';
 
 function getActionLabel(severity: string) {
@@ -14,6 +15,7 @@ function getActionLabel(severity: string) {
 
 export default function CommandCenterPriorities() {
   const items = [
+    ...getStudentRiskInsights(3),
     ...getRecoveryInsights(3),
     ...getAlertInsights().slice(0, 2),
     ...getProgressionInsights(2),
