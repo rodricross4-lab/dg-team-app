@@ -1,5 +1,5 @@
 export type PeriodizationInput = {
-  studentId: number | string;
+  studentId: string;
   goal: string;
   phase: 'cutting' | 'maintenance' | 'bulking' | string;
   frequency: number;

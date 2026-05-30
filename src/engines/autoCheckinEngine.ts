@@ -1,5 +1,5 @@
 export type CheckinInput = {
-  studentId: number | string;
+  studentId: string;
   studentName?: string;
   daysSinceLastCheckin?: number;
   attendanceRate?: number;

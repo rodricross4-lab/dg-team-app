@@ -1,5 +1,5 @@
 export type AutomationContext = {
-  studentId: number | string;
+  studentId: string;
   studentName?: string;
   validSets?: number;
   volumeLoad?: number;

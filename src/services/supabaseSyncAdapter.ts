@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SyncQueueItem } from './offlineSyncEngine';
 import { getSupabaseClient, isSupabaseReady } from './supabaseService';
 
@@ -7,6 +8,7 @@ type AdapterResult = {
 };
 
 type SyncPayload = Record<string, unknown>;
+type ConflictResult = { ok: true; skip: boolean; message?: string } | { ok: false; message: string };
 
 function isPayload(value: unknown): value is SyncPayload {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -22,6 +24,59 @@ function getPayload(item: SyncQueueItem): SyncPayload {
 
 function getPayloadId(payload: SyncPayload) {
   return typeof payload.id === 'string' && payload.id ? payload.id : null;
+}
+
+function getPayloadUpdatedAt(payload: SyncPayload, fallback?: string) {
+  const value = payload.updated_at ?? payload.updatedAt;
+  if (typeof value === 'string' && value) return value;
+  return fallback ?? null;
+}
+
+function parseTimestamp(value: string | null) {
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function ensureUpdatedAt(payload: SyncPayload, fallback: string): SyncPayload {
+  if (getPayloadUpdatedAt(payload)) return payload;
+  return { ...payload, updated_at: fallback };
+}
+
+async function getRemoteConflict(
+  supabase: SupabaseClient,
+  tableName: string,
+  payload: SyncPayload,
+  fallbackUpdatedAt: string
+): Promise<ConflictResult> {
+  const id = getPayloadId(payload);
+  if (!id) return { ok: true, skip: false };
+
+  const localUpdatedAt = parseTimestamp(getPayloadUpdatedAt(payload, fallbackUpdatedAt));
+  if (!localUpdatedAt) return { ok: true, skip: false };
+
+  const { data, error } = await supabase
+    .from(tableName)
+    .select('id, updated_at')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+
+  if (!isPayload(data)) return { ok: true, skip: false };
+
+  const remoteUpdatedAt = parseTimestamp(getPayloadUpdatedAt(data));
+  if (remoteUpdatedAt && remoteUpdatedAt > localUpdatedAt) {
+    return {
+      ok: true,
+      skip: true,
+      message: `${tableName} ignorado: registro remoto mais recente.`
+    };
+  }
+
+  return { ok: true, skip: false };
 }
 
 function isWorkoutSessionPayload(payload: SyncPayload) {
@@ -97,6 +152,15 @@ export async function syncQueueItemToSupabase(item: SyncQueueItem): Promise<Adap
       };
     }
 
+    const conflict = await getRemoteConflict(supabase, tableName, payload, item.updatedAt);
+    if (!conflict.ok) return conflict;
+    if (conflict.skip) {
+      return {
+        ok: true,
+        message: conflict.message ?? `${tableName} mantido na nuvem.`
+      };
+    }
+
     const { error } = await supabase.from(tableName).delete().eq('id', id);
 
     if (error) {
@@ -119,13 +183,23 @@ export async function syncQueueItemToSupabase(item: SyncQueueItem): Promise<Adap
       };
     }
 
+    const archiveUpdate: SyncPayload = {
+      status: 'inactive',
+      deleted_at: payload.deleted_at ?? new Date().toISOString(),
+      updated_at: payload.updated_at ?? new Date().toISOString()
+    };
+    const conflict = await getRemoteConflict(supabase, tableName, { id, ...archiveUpdate }, item.updatedAt);
+    if (!conflict.ok) return conflict;
+    if (conflict.skip) {
+      return {
+        ok: true,
+        message: conflict.message ?? `${tableName} mantido na nuvem.`
+      };
+    }
+
     const { error } = await supabase
       .from(tableName)
-      .update({
-        status: 'inactive',
-        deleted_at: payload.deleted_at ?? new Date().toISOString(),
-        updated_at: payload.updated_at ?? new Date().toISOString()
-      })
+      .update(archiveUpdate)
       .eq('id', id);
 
     if (error) {
@@ -138,7 +212,16 @@ export async function syncQueueItemToSupabase(item: SyncQueueItem): Promise<Adap
     };
   }
 
-  const row = mapPayloadForSupabase(item, tableName);
+  const row = ensureUpdatedAt(mapPayloadForSupabase(item, tableName), item.updatedAt);
+  const conflict = await getRemoteConflict(supabase, tableName, row, item.updatedAt);
+  if (!conflict.ok) return conflict;
+  if (conflict.skip) {
+    return {
+      ok: true,
+      message: conflict.message ?? `${tableName} mantido na nuvem.`
+    };
+  }
+
   const { error } = await supabase.from(tableName).upsert(row);
 
   if (error) {
