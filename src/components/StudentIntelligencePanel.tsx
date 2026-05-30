@@ -10,8 +10,8 @@ type Props = {
 export default function StudentIntelligencePanel({ studentId }: Props) {
   return (
     <div>
-      <StudentPerformanceDashboard />
-      <StudentWeeklyVolume />
+      <StudentPerformanceDashboard studentId={studentId} />
+      <StudentWeeklyVolume studentId={studentId} />
       <StudentRecoveryStatus studentId={studentId} />
       <StudentPRTimeline studentId={studentId} />
     </div>
