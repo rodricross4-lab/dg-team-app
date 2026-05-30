@@ -17,7 +17,6 @@ export default function StudentCrudPanel({ onStudentsChange }: Props) {
   async function refreshStudents() {
     const result = await fetchStudents();
     setStudents(result.data);
-    onStudentsChange?.(result.data);
     setStatus(result.warning);
   }
 
@@ -40,11 +39,9 @@ export default function StudentCrudPanel({ onStudentsChange }: Props) {
       status: 'active',
     });
 
-    setStudents((current) => {
-      const next = [result.data, ...current.filter((student) => student.id !== result.data.id)];
-      onStudentsChange?.(next);
-      return next;
-    });
+    const next = [result.data, ...students.filter((student) => student.id !== result.data.id)];
+    setStudents(next);
+    onStudentsChange?.(next);
     setStatus(result.warning);
     setName('');
   }
@@ -55,11 +52,9 @@ export default function StudentCrudPanel({ onStudentsChange }: Props) {
       name: `${student.name} editado`,
     });
 
-    setStudents((current) => {
-      const next = current.map((item) => (item.id === student.id ? result.data : item));
-      onStudentsChange?.(next);
-      return next;
-    });
+    const next = students.map((item) => (item.id === student.id ? result.data : item));
+    setStudents(next);
+    onStudentsChange?.(next);
     setStatus(result.warning);
   }
 
