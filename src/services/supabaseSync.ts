@@ -1,31 +1,7 @@
 import { loadAppStore } from '../store/appStore';
 import { loadOperationalStore } from '../store/operationalStore';
+import { getStoredLogbookSets, getStoredWorkoutSessions } from './logbookService';
 import { isSupabaseConfigured, supabase } from './supabaseClient';
-
-const LOG_KEY = 'dg-team-logbook-store';
-
-type LocalLogbookEntry = {
-  exerciseId: string;
-  load: string;
-  reps: string;
-  rir: string;
-  execution: string;
-  student_id_local: string;
-};
-
-function loadLogbookEntries(): LocalLogbookEntry[] {
-  return Object.keys(localStorage)
-    .filter((key) => key.startsWith(LOG_KEY))
-    .flatMap((key) => {
-      try {
-        const studentId = key.replace(`${LOG_KEY}-`, '');
-        const entries = JSON.parse(localStorage.getItem(key) || '[]') as Omit<LocalLogbookEntry, 'student_id_local'>[];
-        return entries.map((entry) => ({ ...entry, student_id_local: studentId }));
-      } catch {
-        return [];
-      }
-    });
-}
 
 function getCloudDisabledResult(module: string) {
   return {
@@ -131,24 +107,22 @@ export async function syncPeriodizationToCloud() {
 }
 
 export async function syncLogbookToCloud() {
-  const entries = loadLogbookEntries();
-  const rows = entries.map((entry) => ({
-    student_id: entry.student_id_local,
-    exercise_id: entry.exerciseId,
-    load: entry.load,
-    reps: entry.reps,
-    rir: entry.rir,
-    execution: entry.execution,
-    created_at: new Date().toISOString()
-  }));
+  const rows = getStoredLogbookSets().map((set) => ({ ...set }));
 
-  return safeUpsert('logbook', 'logbook_entries', rows);
+  return safeUpsert('logbook', 'logbook_sets', rows);
+}
+
+export async function syncWorkoutSessionsToCloud() {
+  const rows = getStoredWorkoutSessions().map((session) => ({ ...session }));
+
+  return safeUpsert('workout_sessions', 'workout_sessions', rows);
 }
 
 export async function runFullCloudSync() {
   const results = await Promise.all([
     syncStudentsToCloud(),
     syncWorkoutsToCloud(),
+    syncWorkoutSessionsToCloud(),
     syncAssessmentsToCloud(),
     syncPeriodizationToCloud(),
     syncLogbookToCloud()

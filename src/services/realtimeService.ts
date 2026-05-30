@@ -14,7 +14,7 @@ type RealtimePayloadRow = {
 };
 
 const tableToEvent: Record<string, RealtimeEventType> = {
-  logbook_entries: 'logbook_updated',
+  logbook_sets: 'logbook_updated',
   checkins: 'checkin_saved',
   assessments: 'assessment_saved',
   workouts: 'workout_saved',
