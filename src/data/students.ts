@@ -1,12 +1,13 @@
 import type { Student } from '../types';
+import { LOCAL_COACH_ID, LOCAL_TENANT_ID } from '../services/tenantContextService';
 
 const timestamp = new Date().toISOString();
 
 export const studentsSeed: Student[] = [
   {
     id: 'seed-rodrigo-santos',
-    tenant_id: 'local-tenant',
-    coach_id: 'local-coach',
+    tenant_id: LOCAL_TENANT_ID,
+    coach_id: LOCAL_COACH_ID,
     user_id: null,
     name: 'Rodrigo Santos',
     goal: 'Hipertrofia',
@@ -21,8 +22,8 @@ export const studentsSeed: Student[] = [
   },
   {
     id: 'seed-valentina-rocha',
-    tenant_id: 'local-tenant',
-    coach_id: 'local-coach',
+    tenant_id: LOCAL_TENANT_ID,
+    coach_id: LOCAL_COACH_ID,
     user_id: null,
     name: 'Valentina Rocha',
     goal: 'Gluteos',

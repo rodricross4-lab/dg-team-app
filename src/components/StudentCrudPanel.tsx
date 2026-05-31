@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Student } from '../types';
 import { archiveStudent, fetchStudents, saveStudent } from '../services/studentService';
-
-const DEFAULT_TENANT_ID = 'local-tenant';
-const DEFAULT_COACH_ID = 'local-coach';
+import { getTenantContext } from '../services/tenantContextService';
 
 type Props = {
   onStudentsChange?: (students: Student[]) => void;
@@ -26,10 +24,11 @@ export default function StudentCrudPanel({ onStudentsChange }: Props) {
 
   async function handleAddStudent() {
     if (!name.trim()) return;
+    const context = getTenantContext();
 
     const result = await saveStudent({
-      tenant_id: DEFAULT_TENANT_ID,
-      coach_id: DEFAULT_COACH_ID,
+      tenant_id: context.tenant_id,
+      coach_id: context.coach_id,
       name: name.trim(),
       goal: 'Hipertrofia',
       phase: 'maintenance',

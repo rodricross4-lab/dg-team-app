@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { LogbookSet, WorkoutSession } from '../types';
 import { getStudentWorkouts } from '../store/operationalStore';
 import { finishWorkoutSession, getEffectiveVolume, getExerciseSessionGroups, getPreviousExerciseSets, getVolumeLoad, saveLogbookSet, startWorkoutSession } from '../services/logbookService';
+import { getTenantContext } from '../services/tenantContextService';
 import { analyzeProgression, analyzeRecovery, detectPersonalRecords, getBestValidSet } from '../utils/dgTrainingRules';
 import WorkoutModePanel from './WorkoutModePanel';
 import WorkoutTimer from './WorkoutTimer';
@@ -16,8 +17,6 @@ type SetLog = {
   rir: string;
   execution: string;
 };
-
-const DEFAULT_TENANT_ID = 'local-tenant';
 
 function toExecutionQuality(execution: string): LogbookSet['execution_quality'] {
   if (execution === 'excelente') return 5;
@@ -62,9 +61,10 @@ export default function SmartLogbookPanel({ studentId }: Props) {
 
   async function ensureSession() {
     if (session) return session;
+    const context = getTenantContext();
 
     const result = await startWorkoutSession({
-      tenant_id: DEFAULT_TENANT_ID,
+      tenant_id: context.tenant_id,
       student_id: studentId,
       workout_id: selectedWorkoutId || 'manual-workout',
     });
@@ -140,22 +140,22 @@ export default function SmartLogbookPanel({ studentId }: Props) {
     <div style={panel}>
       <h2 style={{ marginBottom: 10 }}>Logbook presencial inteligente</h2>
       <p style={{ color: '#a0a0a0', marginBottom: 18 }}>
-        Registra sessÃµes reais, sÃ©ries vÃ¡lidas, volume e volume load com sync queue.
+        Registra sessões reais, séries válidas, volume e volume load com sync queue.
       </p>
 
       <WorkoutModePanel />
       <WorkoutTimer />
 
       <div style={ruleBox}>
-        Regra DG TEAM: aquecimento e feeder nÃ£o contam volume. Apenas sÃ©ries vÃ¡lidas entram no volume efetivo e na decisÃ£o de progressÃ£o.
+        Regra DG TEAM: aquecimento e feeder não contam volume. Apenas séries válidas entram no volume efetivo e na decisão de progressão.
       </div>
 
       <div style={statusBox}>
-        <span>Treinos disponÃ­veis: <strong>{workouts.length}</strong></span>
-        <span>SessÃ£o atual: <strong>{session?.status || 'nÃ£o iniciada'}</strong></span>
-        <span>SÃ©ries vÃ¡lidas registradas: <strong>{effectiveVolume}</strong></span>
-        <span>Volume load vÃ¡lido: <strong>{volumeLoad}kg</strong></span>
-        <span>Ãšltimo salvamento: <strong>{savedAt || 'aguardando primeiro set'}</strong></span>
+        <span>Treinos disponíveis: <strong>{workouts.length}</strong></span>
+        <span>Sessão atual: <strong>{session?.status || 'não iniciada'}</strong></span>
+        <span>Séries válidas registradas: <strong>{effectiveVolume}</strong></span>
+        <span>Volume load válido: <strong>{volumeLoad}kg</strong></span>
+        <span>Último salvamento: <strong>{savedAt || 'aguardando primeiro set'}</strong></span>
       </div>
 
       {workouts.length === 0 ? (
@@ -167,7 +167,7 @@ export default function SmartLogbookPanel({ studentId }: Props) {
           <select value={selectedWorkoutId} onChange={(event) => setSelectedWorkoutId(event.target.value)} style={input}>
             {workouts.map((workout) => (
               <option key={workout.id} value={workout.id}>
-                Semana {workout.week} â€¢ {workout.name}
+                Semana {workout.week} • {workout.name}
               </option>
             ))}
           </select>
@@ -201,7 +201,7 @@ export default function SmartLogbookPanel({ studentId }: Props) {
                 <div key={exercise.id} style={exerciseCard}>
                   <strong style={{ color: '#e01616' }}>{exercise.name}</strong>
                   <p style={{ color: '#a0a0a0', margin: '8px 0' }}>
-                    {exercise.group} â€¢ VÃ¡lidas: {exercise.validSets} â€¢ Range: {exercise.reps} â€¢ Descanso: {exercise.rest}
+                    {exercise.group} • Válidas: {exercise.validSets} • Range: {exercise.reps} • Descanso: {exercise.rest}
                   </p>
 
                   {lastHistoryGroup && (
@@ -213,8 +213,8 @@ export default function SmartLogbookPanel({ studentId }: Props) {
                   )}
 
                   <div style={grid}>
-                    <input value={log.load} onChange={(event) => updateLog(exercise.id, { load: event.target.value })} style={input} placeholder="Carga vÃ¡lida" />
-                    <input value={log.reps} onChange={(event) => updateLog(exercise.id, { reps: event.target.value })} style={input} placeholder="Reps vÃ¡lida" />
+                    <input value={log.load} onChange={(event) => updateLog(exercise.id, { load: event.target.value })} style={input} placeholder="Carga válida" />
+                    <input value={log.reps} onChange={(event) => updateLog(exercise.id, { reps: event.target.value })} style={input} placeholder="Reps válida" />
                     <input value={log.rir} onChange={(event) => updateLog(exercise.id, { rir: event.target.value })} style={input} placeholder="RIR" />
                     <select value={log.execution} onChange={(event) => updateLog(exercise.id, { execution: event.target.value })} style={input}>
                       <option>excelente</option>
