@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { LogbookSet, WorkoutSession } from '../types';
 import { getStudentWorkouts } from '../store/operationalStore';
 import { finishWorkoutSession, getEffectiveVolume, getExerciseSessionGroups, getPreviousExerciseSets, getVolumeLoad, saveLogbookSet, startWorkoutSession } from '../services/logbookService';
-import { getTenantContext } from '../services/tenantContextService';
+import { requireTenantContext } from '../services/tenantContextService';
 import { analyzeProgression, analyzeRecovery, detectPersonalRecords, getBestValidSet } from '../utils/dgTrainingRules';
 import WorkoutModePanel from './WorkoutModePanel';
 import WorkoutTimer from './WorkoutTimer';
@@ -61,7 +61,7 @@ export default function SmartLogbookPanel({ studentId }: Props) {
 
   async function ensureSession() {
     if (session) return session;
-    const context = getTenantContext();
+    const context = await requireTenantContext();
 
     const result = await startWorkoutSession({
       tenant_id: context.tenant_id,

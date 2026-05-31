@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { subscribeToCoachRealtime } from '../services/realtimeService';
-import { getTenantContext } from '../services/tenantContextService';
+import { resolveTenantContext } from '../services/tenantContextService';
 import type { RealtimeOrchestratorResult } from '../engines/realtimeOrchestratorEngine';
 
 export function useCoachRealtime(studentId?: string) {
@@ -9,22 +9,34 @@ export function useCoachRealtime(studentId?: string) {
   const [orchestrated, setOrchestrated] = useState<RealtimeOrchestratorResult[]>([]);
 
   useEffect(() => {
-    const context = getTenantContext();
-    const subscription = subscribeToCoachRealtime({
-      tenantId: context.tenant_id,
-      studentId,
-      onEvent: (event) => {
-        setEvents((current) => [event, ...current].slice(0, 20));
-      },
-      onOrchestrated: (result) => {
-        setOrchestrated((current) => [result, ...current].slice(0, 20));
-      }
-    });
+    let active = true;
+    let unsubscribe: () => void = () => undefined;
 
-    setStatus(subscription.message);
+    resolveTenantContext()
+      .then((context) => {
+        if (!active) return;
+
+        const subscription = subscribeToCoachRealtime({
+          tenantId: context.tenant_id,
+          studentId,
+          onEvent: (event) => {
+            setEvents((current) => [event, ...current].slice(0, 20));
+          },
+          onOrchestrated: (result) => {
+            setOrchestrated((current) => [result, ...current].slice(0, 20));
+          }
+        });
+
+        unsubscription = subscription.unsubscribe;
+        setStatus(context.warning || subscription.message);
+      })
+      .catch((error) => {
+        if (active) setStatus(error instanceof Error ? error.message : 'Realtime indisponivel.');
+      });
 
     return () => {
-      subscription.unsubscribe();
+      active = false;
+      unsubscribe();
     };
   }, [studentId]);
 

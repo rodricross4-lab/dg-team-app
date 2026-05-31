@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SyncQueueItem } from './offlineSyncEngine';
 import { getSupabaseClient, isSupabaseReady } from './supabaseService';
+import { requireTenantContext, type TenantContext } from './tenantContextService';
 
 type AdapterResult = {
   ok: boolean;
@@ -9,6 +10,19 @@ type AdapterResult = {
 
 type SyncPayload = Record<string, unknown>;
 type ConflictResult = { ok: true; skip: boolean; message?: string } | { ok: false; message: string };
+
+const tenantScopedTables = new Set([
+  'students',
+  'workouts',
+  'workout_sessions',
+  'logbook_sets',
+  'prs',
+  'assessments',
+  'checkins',
+  'photos'
+]);
+const coachScopedTables = new Set(['students', 'workouts']);
+const tablesWithoutUpdatedAt = new Set(['prs']);
 
 function isPayload(value: unknown): value is SyncPayload {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -47,7 +61,8 @@ async function getRemoteConflict(
   supabase: SupabaseClient,
   tableName: string,
   payload: SyncPayload,
-  fallbackUpdatedAt: string
+  fallbackUpdatedAt: string,
+  context: TenantContext
 ): Promise<ConflictResult> {
   const id = getPayloadId(payload);
   if (!id) return { ok: true, skip: false };
@@ -55,11 +70,17 @@ async function getRemoteConflict(
   const localUpdatedAt = parseTimestamp(getPayloadUpdatedAt(payload, fallbackUpdatedAt));
   if (!localUpdatedAt) return { ok: true, skip: false };
 
-  const { data, error } = await supabase
+  const columns = tablesWithoutUpdatedAt.has(tableName) ? 'id' : 'id, updated_at';
+  let query = supabase
     .from(tableName)
-    .select('id, updated_at')
-    .eq('id', id)
-    .maybeSingle();
+    .select(columns)
+    .eq('id', id);
+
+  if (tenantScopedTables.has(tableName)) {
+    query = query.eq('tenant_id', context.tenant_id);
+  }
+
+  const { data, error } = await query.maybeSingle();
 
   if (error) {
     return { ok: false, message: error.message };
@@ -77,6 +98,28 @@ async function getRemoteConflict(
   }
 
   return { ok: true, skip: false };
+}
+
+function withTenantContext(payload: SyncPayload, tableName: string, context: TenantContext): SyncPayload {
+  const next = { ...payload };
+
+  if (tenantScopedTables.has(tableName)) {
+    if (typeof next.tenant_id === 'string' && next.tenant_id && next.tenant_id !== context.tenant_id) {
+      throw new Error(`${tableName} bloqueado: tenant_id nao pertence ao contexto autenticado.`);
+    }
+
+    next.tenant_id = context.tenant_id;
+  }
+
+  if (coachScopedTables.has(tableName)) {
+    if (typeof next.coach_id === 'string' && next.coach_id && next.coach_id !== context.coach_id) {
+      throw new Error(`${tableName} bloqueado: coach_id nao pertence ao contexto autenticado.`);
+    }
+
+    next.coach_id = context.coach_id;
+  }
+
+  return next;
 }
 
 function isWorkoutSessionPayload(payload: SyncPayload) {
@@ -139,6 +182,7 @@ export async function syncQueueItemToSupabase(item: SyncQueueItem): Promise<Adap
   }
 
   const supabase = getSupabaseClient();
+  const context = await requireTenantContext();
   const tableName = getTableName(item);
   const payload = getPayload(item);
 
@@ -152,7 +196,7 @@ export async function syncQueueItemToSupabase(item: SyncQueueItem): Promise<Adap
       };
     }
 
-    const conflict = await getRemoteConflict(supabase, tableName, payload, item.updatedAt);
+    const conflict = await getRemoteConflict(supabase, tableName, payload, item.updatedAt, context);
     if (!conflict.ok) return conflict;
     if (conflict.skip) {
       return {
@@ -161,7 +205,13 @@ export async function syncQueueItemToSupabase(item: SyncQueueItem): Promise<Adap
       };
     }
 
-    const { error } = await supabase.from(tableName).delete().eq('id', id);
+    let query = supabase.from(tableName).delete().eq('id', id);
+
+    if (tenantScopedTables.has(tableName)) {
+      query = query.eq('tenant_id', context.tenant_id);
+    }
+
+    const { error } = await query;
 
     if (error) {
       return { ok: false, message: error.message };
@@ -188,7 +238,7 @@ export async function syncQueueItemToSupabase(item: SyncQueueItem): Promise<Adap
       deleted_at: payload.deleted_at ?? new Date().toISOString(),
       updated_at: payload.updated_at ?? new Date().toISOString()
     };
-    const conflict = await getRemoteConflict(supabase, tableName, { id, ...archiveUpdate }, item.updatedAt);
+    const conflict = await getRemoteConflict(supabase, tableName, { id, ...archiveUpdate }, item.updatedAt, context);
     if (!conflict.ok) return conflict;
     if (conflict.skip) {
       return {
@@ -197,10 +247,16 @@ export async function syncQueueItemToSupabase(item: SyncQueueItem): Promise<Adap
       };
     }
 
-    const { error } = await supabase
+    let query = supabase
       .from(tableName)
       .update(archiveUpdate)
       .eq('id', id);
+
+    if (tenantScopedTables.has(tableName)) {
+      query = query.eq('tenant_id', context.tenant_id);
+    }
+
+    const { error } = await query;
 
     if (error) {
       return { ok: false, message: error.message };
@@ -212,8 +268,8 @@ export async function syncQueueItemToSupabase(item: SyncQueueItem): Promise<Adap
     };
   }
 
-  const row = ensureUpdatedAt(mapPayloadForSupabase(item, tableName), item.updatedAt);
-  const conflict = await getRemoteConflict(supabase, tableName, row, item.updatedAt);
+  const row = withTenantContext(ensureUpdatedAt(mapPayloadForSupabase(item, tableName), item.updatedAt), tableName, context);
+  const conflict = await getRemoteConflict(supabase, tableName, row, item.updatedAt, context);
   if (!conflict.ok) return conflict;
   if (conflict.skip) {
     return {

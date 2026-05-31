@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { requireTenantContext, resolveTenantContext, type TenantContext } from './tenantContextService';
 
 export type CloudResult<T = unknown> = {
   ok: boolean;
@@ -7,6 +8,18 @@ export type CloudResult<T = unknown> = {
 };
 
 type SupabaseRow = Record<string, unknown>;
+const tenantScopedTables = new Set([
+  'students',
+  'workouts',
+  'workout_sessions',
+  'logbook_sets',
+  'assessments',
+  'checkins',
+  'timeline_events',
+  'ai_insights',
+  'notifications'
+]);
+const coachScopedTables = new Set(['students', 'workouts', 'notifications']);
 
 function disabled<T = unknown>(): CloudResult<T> {
   return {
@@ -23,15 +36,43 @@ function emptyRows<T = unknown>(message: string): CloudResult<T[]> {
   };
 }
 
+function withCloudContext(table: string, row: SupabaseRow, context: TenantContext): SupabaseRow {
+  const next = { ...row };
+
+  if (tenantScopedTables.has(table)) {
+    if (typeof next.tenant_id === 'string' && next.tenant_id && next.tenant_id !== context.tenant_id) {
+      throw new Error(`${table} bloqueado: tenant_id nao pertence ao contexto autenticado.`);
+    }
+
+    next.tenant_id = context.tenant_id;
+  }
+
+  if (coachScopedTables.has(table)) {
+    if (typeof next.coach_id === 'string' && next.coach_id && next.coach_id !== context.coach_id) {
+      throw new Error(`${table} bloqueado: coach_id nao pertence ao contexto autenticado.`);
+    }
+
+    next.coach_id = context.coach_id;
+  }
+
+  return next;
+}
+
 async function selectByStudent<T = SupabaseRow>(table: string, studentId: string): Promise<CloudResult<T[]>> {
   if (!studentId) return emptyRows<T>('Aluno não informado para consulta cloud.');
   if (!isSupabaseConfigured() || !supabase) return disabled<T[]>();
 
-  const { data, error } = await supabase
+  const context = await resolveTenantContext();
+  let query = supabase
     .from(table)
     .select('*')
-    .eq('student_id', studentId)
-    .order('created_at', { ascending: false });
+    .eq('student_id', studentId);
+
+  if (tenantScopedTables.has(table)) {
+    query = query.eq('tenant_id', context.tenant_id);
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) return { ok: false, message: error.message, data: [] };
   return { ok: true, message: `${table} carregado.`, data: (data || []) as T[] };
@@ -41,9 +82,12 @@ async function upsertRows(table: string, rows: SupabaseRow[]): Promise<CloudResu
   if (!rows.length) return emptyRows<SupabaseRow>('Nenhum registro informado para sincronizar.');
   if (!isSupabaseConfigured() || !supabase) return disabled<SupabaseRow[]>();
 
+  const context = await requireTenantContext();
+  const scopedRows = rows.map((row) => withCloudContext(table, row, context));
+
   const { data, error } = await supabase
     .from(table)
-    .upsert(rows)
+    .upsert(scopedRows)
     .select('*');
 
   if (error) return { ok: false, message: error.message, data: [] };
@@ -54,9 +98,11 @@ export const cloudDataService = {
   getStudents: async (): Promise<CloudResult<SupabaseRow[]>> => {
     if (!isSupabaseConfigured() || !supabase) return disabled<SupabaseRow[]>();
 
+    context = await resolveTenantContext();
     const { data, error } = await supabase
       .from('students')
       .select('*')
+      .eq('tenant_id', context.tenant_id)
       .order('created_at', { ascending: false });
 
     if (error) return { ok: false, message: error.message, data: [] };
@@ -82,9 +128,11 @@ export const cloudDataService = {
   getNotifications: async (): Promise<CloudResult<SupabaseRow[]>> => {
     if (!isSupabaseConfigured() || !supabase) return disabled<SupabaseRow[]>();
 
+    context = await resolveTenantContext();
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
+      .eq('tenant_id', context.tenant_id)
       .order('created_at', { ascending: false });
 
     if (error) return { ok: false, message: error.message, data: [] };

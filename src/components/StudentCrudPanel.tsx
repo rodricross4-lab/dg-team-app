@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Student } from '../types';
 import { archiveStudent, fetchStudents, saveStudent } from '../services/studentService';
-import { getTenantContext } from '../services/tenantContextService';
+import { requireTenantContext } from '../services/tenantContextService';
 
 type Props = {
   onStudentsChange?: (students: Student[]) => void;
@@ -24,25 +24,30 @@ export default function StudentCrudPanel({ onStudentsChange }: Props) {
 
   async function handleAddStudent() {
     if (!name.trim()) return;
-    const context = getTenantContext();
 
-    const result = await saveStudent({
-      tenant_id: context.tenant_id,
-      coach_id: context.coach_id,
-      name: name.trim(),
-      goal: 'Hipertrofia',
-      phase: 'maintenance',
-      training_frequency: 4,
-      priority_muscles: [],
-      alerts: [],
-      status: 'active',
-    });
+    try {
+      const context = await requireTenantContext();
 
-    const next = [result.data, ...students.filter((student) => student.id !== result.data.id)];
-    setStudents(next);
-    onStudentsChange?.(next);
-    setStatus(result.warning);
-    setName('');
+      const result = await saveStudent({
+        tenant_id: context.tenant_id,
+        coach_id: context.coach_id,
+        name: name.trim(),
+        goal: 'Hipertrofia',
+        phase: 'maintenance',
+        training_frequency: 4,
+        priority_muscles: [],
+        alerts: [],
+        status: 'active',
+      });
+
+      const next = [result.data, ...students.filter((student) => student.id !== result.data.id)];
+      setStudents(next);
+      onStudentsChange?.(next);
+      setStatus(result.warning);
+      setName('');
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Nao foi possivel resolver tenant/coach.');
+    }
   }
 
   async function handleRename(student: Student) {
