@@ -98,7 +98,7 @@ export const cloudDataService = {
   getStudents: async (): Promise<CloudResult<SupabaseRow[]>> => {
     if (!isSupabaseConfigured() || !supabase) return disabled<SupabaseRow[]>();
 
-    context = await resolveTenantContext();
+    const context = await resolveTenantContext();
     const { data, error } = await supabase
       .from('students')
       .select('*')
@@ -128,7 +128,7 @@ export const cloudDataService = {
   getNotifications: async (): Promise<CloudResult<SupabaseRow[]>> => {
     if (!isSupabaseConfigured() || !supabase) return disabled<SupabaseRow[]>();
 
-    context = await resolveTenantContext();
+    const context = await resolveTenantContext();
     const { data, error } = await supabase
       .from('notifications')
       .select('*')

@@ -27,7 +27,7 @@ export function useCoachRealtime(studentId?: string) {
           }
         });
 
-        unsubscription = subscription.unsubscribe;
+        unsubscribe = subscription.unsubscribe;
         setStatus(context.warning || subscription.message);
       })
       .catch((error) => {
