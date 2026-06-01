@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { exerciseLibrary, formatRepRange, formatRest } from '../data/exerciseLibrary';
 import { getStudentWorkouts, upsertWorkout } from '../store/operationalStore';
 
 type Props = { studentId: string };
 
 type ExerciseRow = {
-  id: number;
+  id: string;
   name: string;
   group: string;
   warmup: string;
@@ -15,26 +16,50 @@ type ExerciseRow = {
   notes: string;
 };
 
-const defaultExercise: ExerciseRow = {
-  id: 1,
-  name: 'Supino inclinado halteres',
-  group: 'Peitoral',
+const defaultPreset = exerciseLibrary.find((exercise) => exercise.id === 'global-supino-inclinado-halteres') ?? exerciseLibrary[0];
+
+const defaultExercise = {
+  name: defaultPreset.name,
+  group: defaultPreset.muscle_group,
   warmup: '1x 10-12',
   feeder: '2x progressivas',
   validSets: '2',
-  reps: '6-10',
-  rest: '2-3 min',
-  notes: 'Séries válidas próximas da falha. Bateu topo do range, subir carga.'
+  reps: formatRepRange(defaultPreset),
+  rest: formatRest(defaultPreset),
+  notes: defaultPreset.notes || 'Series validas proximas da falha. Bateu topo do range, subir carga.'
 };
+
+function createExerciseRow(patch: Partial<ExerciseRow> = {}): ExerciseRow {
+  return {
+    ...defaultExercise,
+    id: crypto.randomUUID(),
+    ...patch
+  };
+}
+
+function createExerciseRowFromPreset(presetId: string, id: string = crypto.randomUUID()): ExerciseRow {
+  const preset = exerciseLibrary.find((exercise) => exercise.id === presetId) ?? defaultPreset;
+
+  return {
+    ...defaultExercise,
+    id,
+    name: preset.name,
+    group: preset.muscle_group,
+    reps: formatRepRange(preset),
+    rest: formatRest(preset),
+    notes: preset.notes || defaultExercise.notes
+  };
+}
 
 export default function WorkoutBuilderPanel({ studentId }: Props) {
   const [workoutName, setWorkoutName] = useState('Treino A');
   const [week, setWeek] = useState('Semana 1');
-  const [exercises, setExercises] = useState<ExerciseRow[]>([defaultExercise]);
+  const [workoutId] = useState(() => crypto.randomUUID());
+  const [exercises, setExercises] = useState<ExerciseRow[]>(() => [createExerciseRow()]);
   const [savedAt, setSavedAt] = useState('');
   const [savedCount, setSavedCount] = useState(() => getStudentWorkouts(studentId).length);
 
-  function updateExercise(id: number, patch: Partial<ExerciseRow>) {
+  function updateExercise(id: string, patch: Partial<ExerciseRow>) {
     setExercises((current) =>
       current.map((exercise) =>
         exercise.id === id ? { ...exercise, ...patch } : exercise
@@ -45,16 +70,16 @@ export default function WorkoutBuilderPanel({ studentId }: Props) {
   function addExercise() {
     setExercises((current) => [
       ...current,
-      {
-        ...defaultExercise,
-        id: Date.now(),
-        name: 'Novo exercício',
-        group: 'Grupamento'
-      }
+      createExerciseRowFromPreset(exerciseLibrary[current.length % exerciseLibrary.length].id)
     ]);
   }
 
-  function removeExercise(id: number) {
+  function applyExercisePreset(id: string, presetId: string) {
+    if (!presetId) return;
+    updateExercise(id, createExerciseRowFromPreset(presetId, id));
+  }
+
+  function removeExercise(id: string) {
     setExercises((current) => current.filter((exercise) => exercise.id !== id));
   }
 
@@ -63,15 +88,12 @@ export default function WorkoutBuilderPanel({ studentId }: Props) {
     const updatedAt = new Date().toISOString();
 
     upsertWorkout({
-      id: `${studentId}-${weekNumber}-${workoutName}`,
+      id: workoutId,
       studentId,
       week: weekNumber,
       name: workoutName,
       updatedAt,
-      exercises: exercises.map((exercise) => ({
-        ...exercise,
-        id: String(exercise.id)
-      }))
+      exercises
     });
 
     setSavedAt(updatedAt);
@@ -108,6 +130,12 @@ export default function WorkoutBuilderPanel({ studentId }: Props) {
             </div>
 
             <div style={grid}>
+              <select value={exerciseLibrary.find((preset) => preset.name === exercise.name)?.id || ''} onChange={(event) => applyExercisePreset(exercise.id, event.target.value)} style={input}>
+                <option value="">Exercicio personalizado</option>
+                {exerciseLibrary.map((preset) => (
+                  <option key={preset.id} value={preset.id}>{preset.name}</option>
+                ))}
+              </select>
               <input value={exercise.name} onChange={(event) => updateExercise(exercise.id, { name: event.target.value })} style={input} placeholder="Exercício" />
               <input value={exercise.group} onChange={(event) => updateExercise(exercise.id, { group: event.target.value })} style={input} placeholder="Grupamento" />
               <input value={exercise.warmup} onChange={(event) => updateExercise(exercise.id, { warmup: event.target.value })} style={input} placeholder="Aquecimento" />
