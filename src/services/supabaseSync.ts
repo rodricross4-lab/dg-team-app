@@ -32,6 +32,18 @@ async function safeUpsert(module: string, table: string, rows: Record<string, un
   return getCloudResult(module, true, rows.length, `${module}: ${rows.length} registro(s) sincronizados.`);
 }
 
+function parseNumber(value?: string) {
+  if (!value?.trim()) return null;
+  const parsed = Number(value.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function cleanNumberMap(values: Record<string, number | null>) {
+  return Object.fromEntries(
+    Object.entries(values).filter(([, value]) => value !== null)
+  );
+}
+
 export async function syncStudentsToCloud() {
   const store = loadAppStore();
   const rows = store.students.map((student) => ({
@@ -76,16 +88,41 @@ export async function syncWorkoutsToCloud() {
 
 export async function syncAssessmentsToCloud() {
   const store = loadOperationalStore();
-  const rows = store.assessments.map((assessment) => ({
-    student_id: assessment.studentId,
-    week: assessment.week,
-    weight: assessment.weight,
-    body_fat: assessment.bodyFat,
-    waist: assessment.waist,
-    arm: assessment.arm,
-    notes: assessment.notes,
-    updated_at: assessment.updatedAt || new Date().toISOString()
-  }));
+  const students = new Map(loadAppStore().students.map((student) => [student.id, student]));
+  const rows = store.assessments.flatMap((assessment) => {
+    const student = students.get(assessment.studentId);
+    if (!student?.tenant_id) return [];
+
+    const weight = parseNumber(assessment.weight);
+    const bodyFat = parseNumber(assessment.bodyFat);
+    const leanMass = weight !== null && bodyFat !== null
+      ? Math.round(weight * (1 - bodyFat / 100) * 10) / 10
+      : null;
+
+    return [{
+      id: `${assessment.studentId}-assessment-week-${assessment.week}`,
+      tenant_id: student.tenant_id,
+      student_id: assessment.studentId,
+      protocol: assessment.protocol || 'custom',
+      week: assessment.week,
+      weight_kg: weight,
+      body_fat_percentage: bodyFat,
+      lean_mass_kg: leanMass,
+      circumference: cleanNumberMap({
+        waist: parseNumber(assessment.waist),
+        abdomen: parseNumber(assessment.abdomen),
+        hip: parseNumber(assessment.hip),
+        chest: parseNumber(assessment.chest),
+        flexed_arm: parseNumber(assessment.arm),
+        thigh: parseNumber(assessment.thigh),
+        calf: parseNumber(assessment.calf)
+      }),
+      skinfolds: {},
+      notes: assessment.notes || null,
+      created_at: assessment.createdAt || assessment.updatedAt || new Date().toISOString(),
+      updated_at: assessment.updatedAt || new Date().toISOString()
+    }];
+  });
 
   return safeUpsert('assessments', 'assessments', rows);
 }

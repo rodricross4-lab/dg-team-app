@@ -22,11 +22,18 @@ export type EditableWorkout = {
 export type EditableAssessment = {
   studentId: string;
   week: 1 | 4 | 8;
+  protocol?: '7-site' | '3-site' | 'custom';
   weight: string;
   bodyFat: string;
   waist: string;
+  abdomen?: string;
+  hip?: string;
+  chest?: string;
   arm: string;
+  thigh?: string;
+  calf?: string;
   notes: string;
+  createdAt?: string;
   updatedAt: string;
 };
 
