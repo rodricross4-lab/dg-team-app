@@ -34,12 +34,12 @@ function header(doc: jsPDF, title: string, subtitle: string) {
 function footer(doc: jsPDF) {
   doc.setTextColor(120, 120, 120);
   doc.setFontSize(9);
-  doc.text('Método DG TEAM • Intensidade • Execução • Progressão', 14, 286);
+  doc.text('Metodo DG TEAM - Intensidade - Execucao - Progressao', 14, 286);
 }
 
 export function exportWorkoutPdf(studentName: string, workoutName: string, exercises: PdfWorkoutExercise[]) {
   const doc = new jsPDF('p', 'mm', 'a4');
-  header(doc, `Ficha de treino • ${workoutName}`, studentName);
+  header(doc, `Ficha de treino - ${workoutName}`, studentName);
 
   let y = 60;
 
@@ -47,7 +47,7 @@ export function exportWorkoutPdf(studentName: string, workoutName: string, exerc
     if (y > 250) {
       footer(doc);
       doc.addPage();
-      header(doc, `Ficha de treino • ${workoutName}`, studentName);
+      header(doc, `Ficha de treino - ${workoutName}`, studentName);
       y = 60;
     }
 
@@ -60,8 +60,8 @@ export function exportWorkoutPdf(studentName: string, workoutName: string, exerc
 
     doc.setTextColor(220, 220, 220);
     doc.setFontSize(9);
-    doc.text(`Grupo: ${exercise.group} • Válidas: ${exercise.validSets || '-'} • Reps: ${exercise.reps || '-'} • Descanso: ${exercise.rest || '-'}`, 18, y + 8);
-    doc.text(`Aquecimento: ${exercise.warmup || '-'} • Ajuste: ${exercise.feeder || '-'}`, 18, y + 16);
+    doc.text(`Grupo: ${exercise.group} - Validas: ${exercise.validSets || '-'} - Reps: ${exercise.reps || '-'} - Descanso: ${exercise.rest || '-'}`, 18, y + 8);
+    doc.text(`Aquecimento: ${exercise.warmup || '-'} - Ajuste: ${exercise.feeder || '-'}`, 18, y + 16);
 
     if (exercise.notes) {
       doc.setTextColor(165, 165, 165);
@@ -90,7 +90,7 @@ export function exportCycleSummaryPdf(studentName: string, summary: string[]) {
 
     doc.setTextColor(235, 235, 235);
     doc.setFontSize(11);
-    doc.text(doc.splitTextToSize(`• ${item}`, 174), 18, y);
+    doc.text(doc.splitTextToSize(`- ${item}`, 174), 18, y);
     y += 14;
   });
 

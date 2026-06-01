@@ -21,11 +21,11 @@ function createDefaultWeeks(studentId: string): WeekPlan[] {
 
     return {
       week: weekNumber,
-      focus: existing?.focus || (index < 3 ? 'Progressão técnica e carga' : index < 6 ? 'Progressão de performance' : 'Consolidação e controle de fadiga'),
+      focus: existing?.focus || (index < 3 ? 'Progressao tecnica e carga' : index < 6 ? 'Progressao de performance' : 'Consolidacao e controle de fadiga'),
       intensity: existing?.intensity || 'Alta',
-      volume: existing?.volume || (index < 2 ? 'Moderado' : index < 6 ? 'Moderado/alto recuperável' : 'Moderado controlado'),
+      volume: existing?.volume || (index < 2 ? 'Moderado' : index < 6 ? 'Moderado/alto recuperavel' : 'Moderado controlado'),
       deload: existing?.deload || false,
-      notes: existing?.notes || 'Manter séries válidas próximas da falha, execução limpa e progressão sustentável.'
+      notes: existing?.notes || 'Manter series validas proximas da falha, execucao limpa e progressao sustentavel.'
     };
   });
 }
@@ -61,13 +61,13 @@ export default function PeriodizationEditorPanel({ studentId }: Props) {
 
   return (
     <div style={panel}>
-      <h2 style={{ marginBottom: 10 }}>Periodização de 8 semanas</h2>
+      <h2 style={{ marginBottom: 10 }}>Periodizacao de 8 semanas</h2>
       <p style={{ color: '#a0a0a0', marginBottom: 18 }}>
-        Edite foco, intensidade, volume, deload e observações de cada semana do ciclo.
+        Edite foco, intensidade, volume, deload e observacoes de cada semana do ciclo.
       </p>
 
       <div style={statusBox}>
-        Último salvamento: <strong>{savedAt || 'ainda não salvo'}</strong>
+        Ultimo salvamento: <strong>{savedAt || 'ainda nao salvo'}</strong>
       </div>
 
       <div style={{ display: 'grid', gap: 12 }}>
@@ -84,12 +84,12 @@ export default function PeriodizationEditorPanel({ studentId }: Props) {
               Semana de deload/controle de fadiga
             </label>
 
-            <textarea value={week.notes} onChange={(event) => updateWeek(index, { notes: event.target.value })} style={{ ...input, minHeight: 80 }} placeholder="Observações" />
+            <textarea value={week.notes} onChange={(event) => updateWeek(index, { notes: event.target.value })} style={{ ...input, minHeight: 80 }} placeholder="Observacoes" />
           </div>
         ))}
       </div>
 
-      <button onClick={saveAll} style={saveButton}>SALVAR PERIODIZAÇÃO DO ALUNO</button>
+      <button onClick={saveAll} style={saveButton}>SALVAR PERIODIZACAO DO ALUNO</button>
     </div>
   );
 }

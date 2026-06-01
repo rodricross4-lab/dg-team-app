@@ -74,14 +74,23 @@ export async function syncStudentsToCloud() {
 
 export async function syncWorkoutsToCloud() {
   const store = loadOperationalStore();
-  const rows = store.workouts.map((workout) => ({
-    id: workout.id,
-    student_id: workout.studentId,
-    week: workout.week,
-    name: workout.name,
-    exercises: workout.exercises || [],
-    updated_at: workout.updatedAt || new Date().toISOString()
-  }));
+  const students = new Map(loadAppStore().students.map((student) => [student.id, student]));
+  const rows = store.workouts.flatMap((workout) => {
+    const student = students.get(workout.studentId);
+    if (!student?.tenant_id) return [];
+
+    return [{
+      id: workout.id,
+      tenant_id: student.tenant_id,
+      coach_id: student.coach_id,
+      student_id: workout.studentId,
+      week: workout.week,
+      name: workout.name,
+      exercises: workout.exercises || [],
+      is_active: true,
+      updated_at: workout.updatedAt || new Date().toISOString()
+    }];
+  });
 
   return safeUpsert('workouts', 'workouts', rows);
 }
@@ -129,16 +138,24 @@ export async function syncAssessmentsToCloud() {
 
 export async function syncPeriodizationToCloud() {
   const store = loadOperationalStore();
-  const rows = store.periodization.map((week) => ({
-    student_id: week.studentId,
-    week: week.week,
-    focus: week.focus,
-    intensity: week.intensity,
-    volume: week.volume,
-    deload: week.deload,
-    notes: week.notes,
-    updated_at: week.updatedAt || new Date().toISOString()
-  }));
+  const students = new Map(loadAppStore().students.map((student) => [student.id, student]));
+  const rows = store.periodization.flatMap((week) => {
+    const student = students.get(week.studentId);
+    if (!student?.tenant_id) return [];
+
+    return [{
+      id: `${week.studentId}-periodization-week-${week.week}`,
+      tenant_id: student.tenant_id,
+      student_id: week.studentId,
+      week: week.week,
+      focus: week.focus,
+      intensity: week.intensity,
+      volume: week.volume,
+      deload: week.deload,
+      notes: week.notes,
+      updated_at: week.updatedAt || new Date().toISOString()
+    }];
+  });
 
   return safeUpsert('periodization', 'periodization_weeks', rows);
 }
