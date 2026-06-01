@@ -247,14 +247,32 @@ create index if not exists idx_coaches_user_id on coaches(user_id);
 create index if not exists idx_students_tenant_id on students(tenant_id);
 create index if not exists idx_students_coach_id on students(coach_id);
 create index if not exists idx_students_user_id on students(user_id);
+create index if not exists idx_workouts_tenant_id on workouts(tenant_id);
 create index if not exists idx_workouts_student_id on workouts(student_id);
+create index if not exists idx_workout_exercises_tenant_id on workout_exercises(tenant_id);
+create index if not exists idx_workout_exercises_workout_id on workout_exercises(workout_id);
+create index if not exists idx_workout_sessions_tenant_id on workout_sessions(tenant_id);
 create index if not exists idx_workout_sessions_student_id on workout_sessions(student_id);
+create index if not exists idx_logbook_sets_tenant_id on logbook_sets(tenant_id);
 create index if not exists idx_logbook_sets_student_id on logbook_sets(student_id);
 create index if not exists idx_logbook_sets_session_id on logbook_sets(session_id);
+create index if not exists idx_prs_tenant_id on prs(tenant_id);
 create index if not exists idx_prs_student_id on prs(student_id);
+create index if not exists idx_assessments_tenant_id on assessments(tenant_id);
 create index if not exists idx_assessments_student_id on assessments(student_id);
+create index if not exists idx_checkins_tenant_id on checkins(tenant_id);
 create index if not exists idx_checkins_student_id on checkins(student_id);
+create index if not exists idx_photos_tenant_id on photos(tenant_id);
 create index if not exists idx_photos_student_id on photos(student_id);
+create index if not exists idx_periodization_weeks_tenant_id on periodization_weeks(tenant_id);
+create index if not exists idx_periodization_weeks_student_id on periodization_weeks(student_id);
+create index if not exists idx_timeline_events_tenant_id on timeline_events(tenant_id);
+create index if not exists idx_timeline_events_student_id on timeline_events(student_id);
+create index if not exists idx_ai_insights_tenant_id on ai_insights(tenant_id);
+create index if not exists idx_ai_insights_student_id on ai_insights(student_id);
+create index if not exists idx_notifications_tenant_id on notifications(tenant_id);
+create index if not exists idx_notifications_coach_id on notifications(coach_id);
+create index if not exists idx_notifications_student_id on notifications(student_id);
 
 alter table tenants enable row level security;
 alter table app_users enable row level security;
@@ -274,6 +292,120 @@ alter table timeline_events enable row level security;
 alter table ai_insights enable row level security;
 alter table notifications enable row level security;
 
+create or replace function public.dg_current_tenant_id()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select tenant_id
+  from public.app_users
+  where id = auth.uid()
+  limit 1
+$$;
+
+create or replace function public.dg_is_current_coach(target_coach_id text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.coaches
+    where id = target_coach_id
+      and user_id = auth.uid()
+      and active = true
+      and tenant_id = public.dg_current_tenant_id()
+  )
+$$;
+
+create or replace function public.dg_can_access_student(target_student_id text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.students
+    where id = target_student_id
+      and tenant_id = public.dg_current_tenant_id()
+      and (
+        user_id = auth.uid()
+        or public.dg_is_current_coach(coach_id)
+      )
+  )
+$$;
+
+create or replace function public.dg_student_tenant_matches(target_student_id text, target_tenant_id text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.students
+    where id = target_student_id
+      and tenant_id = target_tenant_id
+      and tenant_id = public.dg_current_tenant_id()
+  )
+$$;
+
+create or replace function public.dg_can_access_workout(target_workout_id text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.workouts
+    where id = target_workout_id
+      and tenant_id = public.dg_current_tenant_id()
+      and public.dg_can_access_student(student_id)
+  )
+$$;
+
+create or replace function public.dg_workout_tenant_matches(target_workout_id text, target_tenant_id text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.workouts
+    where id = target_workout_id
+      and tenant_id = target_tenant_id
+      and tenant_id = public.dg_current_tenant_id()
+  )
+$$;
+
+create or replace function public.dg_session_matches_student_tenant(target_session_id text, target_student_id text, target_tenant_id text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.workout_sessions
+    where id = target_session_id
+      and student_id = target_student_id
+      and tenant_id = target_tenant_id
+      and tenant_id = public.dg_current_tenant_id()
+  )
+$$;
+
 drop policy if exists app_users_self_select on app_users;
 create policy app_users_self_select on app_users for select using (id = auth.uid());
 
@@ -282,114 +414,160 @@ create policy app_users_self_update on app_users for update using (id = auth.uid
 
 drop policy if exists tenants_member_select on tenants;
 create policy tenants_member_select on tenants for select using (
-  id in (select tenant_id from app_users where app_users.id = auth.uid())
+  id = public.dg_current_tenant_id()
 );
 
 drop policy if exists coaches_owner_all on coaches;
-create policy coaches_owner_all on coaches for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy coaches_owner_all on coaches for all using (
+  tenant_id = public.dg_current_tenant_id()
+  and user_id = auth.uid()
+) with check (
+  tenant_id = public.dg_current_tenant_id()
+  and user_id = auth.uid()
+);
 
 drop policy if exists students_coach_or_self_all on students;
 create policy students_coach_or_self_all on students for all using (
-  user_id = auth.uid()
-  or coach_id in (select id from coaches where user_id = auth.uid())
+  tenant_id = public.dg_current_tenant_id()
+  and (
+    user_id = auth.uid()
+    or public.dg_is_current_coach(coach_id)
+  )
 ) with check (
-  user_id = auth.uid()
-  or coach_id in (select id from coaches where user_id = auth.uid())
+  tenant_id = public.dg_current_tenant_id()
+  and (
+    user_id = auth.uid()
+    or public.dg_is_current_coach(coach_id)
+  )
 );
 
 drop policy if exists exercises_tenant_or_global_select on exercises;
 create policy exercises_tenant_or_global_select on exercises for select using (
   is_global
-  or tenant_id in (select tenant_id from app_users where app_users.id = auth.uid())
+  or tenant_id = public.dg_current_tenant_id()
 );
 
 drop policy if exists exercises_tenant_write on exercises;
 create policy exercises_tenant_write on exercises for all using (
-  tenant_id in (select tenant_id from app_users where app_users.id = auth.uid())
+  tenant_id = public.dg_current_tenant_id()
 ) with check (
-  tenant_id in (select tenant_id from app_users where app_users.id = auth.uid())
+  tenant_id = public.dg_current_tenant_id()
+  and is_global = false
 );
 
 drop policy if exists workouts_access on workouts;
 create policy workouts_access on workouts for all using (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 ) with check (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
+  and (
+    coach_id is null
+    or public.dg_is_current_coach(coach_id)
+  )
 );
 
 drop policy if exists workout_exercises_access on workout_exercises;
 create policy workout_exercises_access on workout_exercises for all using (
-  workout_id in (select id from workouts)
+  public.dg_can_access_workout(workout_id)
+  and public.dg_workout_tenant_matches(workout_id, tenant_id)
 ) with check (
-  workout_id in (select id from workouts)
+  public.dg_can_access_workout(workout_id)
+  and public.dg_workout_tenant_matches(workout_id, tenant_id)
 );
 
 drop policy if exists workout_sessions_access on workout_sessions;
 create policy workout_sessions_access on workout_sessions for all using (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 ) with check (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 );
 
 drop policy if exists logbook_sets_access on logbook_sets;
 create policy logbook_sets_access on logbook_sets for all using (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 ) with check (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
+  and public.dg_session_matches_student_tenant(session_id, student_id, tenant_id)
 );
 
 drop policy if exists prs_access on prs;
 create policy prs_access on prs for all using (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 ) with check (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 );
 
 drop policy if exists assessments_access on assessments;
 create policy assessments_access on assessments for all using (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 ) with check (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 );
 
 drop policy if exists checkins_access on checkins;
 create policy checkins_access on checkins for all using (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 ) with check (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 );
 
 drop policy if exists photos_access on photos;
 create policy photos_access on photos for all using (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 ) with check (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 );
 
 drop policy if exists periodization_weeks_access on periodization_weeks;
 create policy periodization_weeks_access on periodization_weeks for all using (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 ) with check (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 );
 
 drop policy if exists timeline_events_access on timeline_events;
 create policy timeline_events_access on timeline_events for all using (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 ) with check (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 );
 
 drop policy if exists ai_insights_access on ai_insights;
 create policy ai_insights_access on ai_insights for all using (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 ) with check (
-  student_id in (select id from students)
+  public.dg_can_access_student(student_id)
+  and public.dg_student_tenant_matches(student_id, tenant_id)
 );
 
 drop policy if exists notifications_coach_access on notifications;
 create policy notifications_coach_access on notifications for all using (
-  coach_id in (select id from coaches where user_id = auth.uid())
+  tenant_id = public.dg_current_tenant_id()
+  and public.dg_is_current_coach(coach_id)
 ) with check (
-  coach_id in (select id from coaches where user_id = auth.uid())
+  tenant_id = public.dg_current_tenant_id()
+  and public.dg_is_current_coach(coach_id)
+  and (
+    student_id is null
+    or public.dg_can_access_student(student_id)
+  )
 );
