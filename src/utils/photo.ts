@@ -1,12 +1,6 @@
-export type ProgressPhoto = {
-  id: string;
-  week: 1 | 4 | 8;
-  angle: 'frente' | 'costas' | 'lado esquerdo' | 'lado direito';
-  url: string;
-  date: string;
-  weight?: number;
-  notes?: string;
-};
+import type { PhotoWeek, ProgressPhoto } from '../types';
+
+export type { PhotoAngle, PhotoWeek, ProgressPhoto, ProgressPhotoDraft } from '../types';
 
 export function groupPhotosByWeek(photos: ProgressPhoto[]) {
   return {
@@ -16,6 +10,6 @@ export function groupPhotosByWeek(photos: ProgressPhoto[]) {
   };
 }
 
-export function getComparisonLabel(fromWeek: 1 | 4 | 8, toWeek: 1 | 4 | 8) {
+export function getComparisonLabel(fromWeek: PhotoWeek, toWeek: PhotoWeek) {
   return `Semana ${fromWeek} vs Semana ${toWeek}`;
 }

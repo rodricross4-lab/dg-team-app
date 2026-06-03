@@ -1,6 +1,7 @@
 import { loadAppStore } from '../store/appStore';
 import { loadOperationalStore } from '../store/operationalStore';
 import { getStoredLogbookSets, getStoredWorkoutSessions } from './logbookService';
+import { getStoredProgressPhotos, toSupabasePhotoPayload } from './photoService';
 import { isSupabaseConfigured, supabase } from './supabaseClient';
 
 function getCloudDisabledResult(module: string) {
@@ -172,6 +173,14 @@ export async function syncWorkoutSessionsToCloud() {
   return safeUpsert('workout_sessions', 'workout_sessions', rows);
 }
 
+export async function syncPhotosToCloud() {
+  const rows = getStoredProgressPhotos()
+    .filter((photo) => Boolean(photo.tenant_id))
+    .map((photo) => toSupabasePhotoPayload(photo));
+
+  return safeUpsert('photos', 'photos', rows);
+}
+
 export async function runFullCloudSync() {
   const results = await Promise.all([
     syncStudentsToCloud(),
@@ -179,7 +188,8 @@ export async function runFullCloudSync() {
     syncWorkoutSessionsToCloud(),
     syncAssessmentsToCloud(),
     syncPeriodizationToCloud(),
-    syncLogbookToCloud()
+    syncLogbookToCloud(),
+    syncPhotosToCloud()
   ]);
 
   return {

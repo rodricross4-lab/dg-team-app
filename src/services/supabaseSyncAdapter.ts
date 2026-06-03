@@ -163,11 +163,41 @@ function mapWorkoutPayload(payload: SyncPayload): SyncPayload {
   return payload;
 }
 
+function mapPhotoPayload(payload: SyncPayload): SyncPayload {
+  const photoUrl = typeof payload.photo_url === 'string'
+    ? payload.photo_url
+    : typeof payload.url === 'string'
+      ? payload.url
+      : null;
+  const week = typeof payload.week === 'number' ? `week-${payload.week}` : null;
+  const angle = typeof payload.angle === 'string'
+    ? week
+      ? `${week}:${payload.angle}`
+      : payload.angle
+    : null;
+
+  return {
+    id: payload.id,
+    tenant_id: payload.tenant_id,
+    student_id: payload.student_id ?? payload.studentId,
+    photo_url: photoUrl,
+    storage_path: payload.storage_path ?? null,
+    angle,
+    notes: payload.notes ?? null,
+    created_at: payload.created_at ?? payload.createdAt ?? payload.date ?? new Date().toISOString(),
+    updated_at: payload.updated_at ?? payload.updatedAt ?? new Date().toISOString()
+  };
+}
+
 function mapPayloadForSupabase(item: SyncQueueItem, tableName: string): SyncPayload {
   const payload = getPayload(item);
 
   if (tableName === 'workouts') {
     return mapWorkoutPayload(payload);
+  }
+
+  if (tableName === 'photos') {
+    return mapPhotoPayload(payload);
   }
 
   return payload;
