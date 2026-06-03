@@ -1,27 +1,51 @@
-const recovery = [
-  ['Fadiga controlada', 'Upper estável', 'Manter intensidade e volume atual.'],
-  ['Atenção no Lower', 'Queda leve em quadríceps', 'Evitar aumento de volume nesta semana.'],
-  ['Sono e check-in', 'Dados incompletos', 'Cobrar percepção de recuperação.'],
-  ['Deload preventivo', 'Não necessário agora', 'Reavaliar se houver nova queda.']
-];
+import type { CommandCenterInsight } from '../types';
+import { getRecoveryInsights, getRecoveryScores } from '../services/analyticsService';
+
+function getItemStyle(severity: CommandCenterInsight['severity']) {
+  if (severity === 'danger') return dangerItem;
+  if (severity === 'warning') return warningItem;
+  if (severity === 'success') return successItem;
+  return item;
+}
 
 export default function CommandCenterRecoveryEngine() {
+  const recovery = getRecoveryInsights();
+  const scores = getRecoveryScores().slice(0, 3);
+
   return (
     <div style={panel}>
       <div style={head}>
         <div>
           <h3 style={{ margin: 0 }}>Recovery Engine</h3>
-          <p style={sub}>Controle de fadiga, recuperação e tolerância de volume.</p>
+          <p style={sub}>Controle de fadiga, recuperacao e tolerancia de volume.</p>
         </div>
         <span style={tag}>RECOVERY</span>
       </div>
 
-      {recovery.map(([status, area, action]) => (
-        <div key={`${status}-${area}`} style={item}>
-          <strong>{status}</strong>
-          <p style={text}>{area} — {action}</p>
+      {scores.length > 0 && (
+        <div style={scoreGrid}>
+          {scores.map((score) => (
+            <div key={score.student_id} style={scoreCard}>
+              <strong>{score.studentName}</strong>
+              <p style={scoreValue}>{score.score}</p>
+              <span style={muted}>{score.level}</span>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
+
+      {recovery.length ? recovery.map((alert) => (
+        <div key={`${alert.title}-${alert.detail}`} style={getItemStyle(alert.severity)}>
+          <strong>{alert.title}</strong>
+          <p style={text}>{alert.detail}</p>
+          <span style={muted}>{alert.action}</span>
+        </div>
+      )) : (
+        <div style={item}>
+          <strong>Fadiga sem alerta critico</strong>
+          <p style={text}>Registre sessoes e sets validos para gerar leitura real de recuperacao.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -55,4 +79,11 @@ const item = {
   color: '#ddd',
   marginBottom: 10
 };
+const successItem = { ...item, border: '1px solid #174d27', color: '#b7f7c8' };
+const warningItem = { ...item, border: '1px solid #5a3b0b', color: '#ffe3a3' };
+const dangerItem = { ...item, border: '1px solid #5a1515', color: '#ffb8b8' };
 const text = { color: '#aaa', margin: '7px 0 0', lineHeight: 1.45 };
+const muted = { color: '#ffb8b8', fontSize: 12, fontWeight: 900 };
+const scoreGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 10, marginBottom: 12 };
+const scoreCard = { ...item, marginBottom: 0 };
+const scoreValue = { color: '#fff', fontSize: 26, margin: '8px 0 2px', fontWeight: 900 };

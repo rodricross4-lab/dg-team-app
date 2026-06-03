@@ -9,7 +9,7 @@ import type { CoachCommandInput } from '../engines/coachCommandCenterEngine';
 import type { TimelineEvent } from '../engines/autoTimelineEngine';
 
 export default function DailyCoachDashboard() {
-  const studentId = 1;
+  const studentId = 'demo-student';
   const studentName = 'Aluno DG';
 
   const briefingInput: CoachBriefingInput = {

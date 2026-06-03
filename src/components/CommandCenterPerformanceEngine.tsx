@@ -1,28 +1,30 @@
-const rows = [
-  ['Supino inclinado', 'Topo do range', 'Subir 1–2kg na próxima sessão'],
-  ['Hack machine', 'Performance estável', 'Manter carga e buscar +1 rep'],
-  ['Mesa flexora', 'Queda leve', 'Revisar descanso e execução'],
-  ['Hip thrust', 'PR recente', 'Consolidar carga antes de novo aumento']
-];
+import { getProgressionInsights, getRecentPRInsights } from '../services/analyticsService';
 
 export default function CommandCenterPerformanceEngine() {
+  const rows = [...getProgressionInsights(3), ...getRecentPRInsights(1)].slice(0, 4);
+
   return (
     <div style={panel}>
       <div style={head}>
         <div>
           <h3 style={{ margin: 0 }}>Performance Engine</h3>
-          <p style={sub}>Leitura rápida de progressão, estagnação e próximos ajustes.</p>
+          <p style={sub}>Leitura rapida de progressao, estagnacao e proximos ajustes.</p>
         </div>
-        <span style={tag}>PROGRESSÃO</span>
+        <span style={tag}>PROGRESSAO</span>
       </div>
 
-      {rows.map(([exercise, status, action]) => (
-        <div key={exercise} style={item}>
-          <strong>{exercise}</strong>
-          <p style={text}>{status}</p>
-          <span style={pill}>{action}</span>
+      {rows.length ? rows.map((row) => (
+        <div key={`${row.title}-${row.detail}`} style={item}>
+          <strong>{row.title}</strong>
+          <p style={text}>{row.detail}</p>
+          <span style={pill}>{row.action}</span>
         </div>
-      ))}
+      )) : (
+        <div style={item}>
+          <strong>Aguardando dados reais</strong>
+          <p style={text}>Crie treinos e registre sets validos para popular a leitura de performance.</p>
+        </div>
+      )}
     </div>
   );
 }

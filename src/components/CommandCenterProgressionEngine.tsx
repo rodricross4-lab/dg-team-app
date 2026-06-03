@@ -1,27 +1,38 @@
-const decisions = [
-  ['Subir carga', 'Supino inclinado', 'Topo do range batido com boa execução.'],
-  ['Subir reps', 'Hack machine', 'Carga mantida e performance estável.'],
-  ['Manter', 'Mesa flexora', 'Consolidar execução antes de novo aumento.'],
-  ['Deload parcial', 'Lower pesado', 'Aplicar se houver nova queda de performance.']
-];
+import type { CommandCenterInsight } from '../types';
+import { getProgressionInsights } from '../services/analyticsService';
+
+function getItemStyle(severity: CommandCenterInsight['severity']) {
+  if (severity === 'danger') return dangerItem;
+  if (severity === 'warning') return warningItem;
+  if (severity === 'success') return successItem;
+  return item;
+}
 
 export default function CommandCenterProgressionEngine() {
+  const decisions = getProgressionInsights();
+
   return (
     <div style={panel}>
       <div style={head}>
         <div>
           <h3 style={{ margin: 0 }}>Progression Engine</h3>
-          <p style={sub}>Decisões DG Team para próxima sessão.</p>
+          <p style={sub}>Decisoes DG Team para proxima sessao.</p>
         </div>
         <span style={tag}>AUTO</span>
       </div>
 
-      {decisions.map(([decision, target, reason]) => (
-        <div key={`${decision}-${target}`} style={item}>
-          <strong>{decision}</strong>
-          <p style={text}>{target} — {reason}</p>
+      {decisions.length ? decisions.map((decision) => (
+        <div key={`${decision.title}-${decision.detail}`} style={getItemStyle(decision.severity)}>
+          <strong>{decision.title}</strong>
+          <p style={text}>{decision.detail}</p>
+          <span style={muted}>{decision.action}</span>
         </div>
-      ))}
+      )) : (
+        <div style={item}>
+          <strong>Aguardando historico</strong>
+          <p style={text}>Registre pelo menos uma serie valida para gerar decisoes automaticas.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -55,4 +66,8 @@ const item = {
   color: '#ddd',
   marginBottom: 10
 };
+const successItem = { ...item, border: '1px solid #174d27', color: '#b7f7c8' };
+const warningItem = { ...item, border: '1px solid #5a3b0b', color: '#ffe3a3' };
+const dangerItem = { ...item, border: '1px solid #5a1515', color: '#ffb8b8' };
 const text = { color: '#aaa', margin: '7px 0 0', lineHeight: 1.45 };
+const muted = { color: '#ffb8b8', fontSize: 12, fontWeight: 900 };

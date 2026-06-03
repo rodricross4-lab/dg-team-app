@@ -47,7 +47,7 @@ export default function CloudStudentsPanel() {
               </div>
 
               <p style={text}>{student.goal || 'Objetivo não definido'}</p>
-              <p style={text}>Frequência: {student.frequency || 0}x semana</p>
+              <p style={text}>Frequência: {student.training_frequency || 0}x semana</p>
             </div>
           ))
         )}

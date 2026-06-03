@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { Student, WorkoutSession } from '../types';
+import type { GeneratedWorkout, Student } from '../types';
 import {
   addStudent,
   editStudent,
@@ -18,19 +18,19 @@ export function useAppStore() {
       return next;
     },
 
-    editStudent(id: number, patch: Partial<Student>) {
+    editStudent(id: string, patch: Partial<Student>) {
       const next = editStudent(store, id, patch);
       setStore(next);
       return next;
     },
 
-    removeStudent(id: number) {
+    removeStudent(id: string) {
       const next = removeStudent(store, id);
       setStore(next);
       return next;
     },
 
-    saveWorkouts(studentId: number, workouts: WorkoutSession[]) {
+    saveWorkouts(studentId: string, workouts: GeneratedWorkout[]) {
       const next = saveStudentWorkouts(store, studentId, workouts);
       setStore(next);
       return next;

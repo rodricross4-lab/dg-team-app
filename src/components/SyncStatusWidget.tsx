@@ -22,10 +22,12 @@ export default function SyncStatusWidget() {
   }, []);
 
   const label = useMemo(() => {
+    if (summary.blocked > 0) return `${summary.blocked} bloqueados`;
     if (summary.failed > 0) return `${summary.failed} falhas no sync`;
+    if (summary.retryReady > 0) return `${summary.retryReady} prontos para retry`;
     if (summary.pending > 0) return `${summary.pending} pendências`;
     return 'Tudo sincronizado';
-  }, [summary.failed, summary.pending]);
+  }, [summary.blocked, summary.failed, summary.pending, summary.retryReady]);
 
   async function runSync() {
     setLoading(true);
@@ -45,7 +47,9 @@ export default function SyncStatusWidget() {
 
       <div style={stats}>
         <span>Pendente: <strong>{summary.pending}</strong></span>
+        <span>Retry pronto: <strong>{summary.retryReady}</strong></span>
         <span>Falhas: <strong>{summary.failed}</strong></span>
+        <span>Bloqueados: <strong>{summary.blocked}</strong></span>
         <span>Total: <strong>{summary.total}</strong></span>
       </div>
 

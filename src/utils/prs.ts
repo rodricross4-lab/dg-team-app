@@ -1,4 +1,4 @@
-import type { WorkoutSession } from '../types';
+import type { GeneratedWorkout } from '../types';
 
 export type PersonalRecord = {
   exercise: string;
@@ -7,7 +7,7 @@ export type PersonalRecord = {
   label: string;
 };
 
-export function detectPersonalRecords(workouts: WorkoutSession[]): PersonalRecord[] {
+export function detectPersonalRecords(workouts: GeneratedWorkout[]): PersonalRecord[] {
   const records: PersonalRecord[] = [];
   const bestByExercise = new Map<string, { load: number; reps: number; volumeLoad: number }>();
 

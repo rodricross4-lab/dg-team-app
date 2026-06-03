@@ -1,5 +1,6 @@
-import { clearCompletedSyncItems, getPendingSyncQueue, markSyncDone, markSyncFailed } from './offlineSyncEngine';
+import { clearCompletedSyncItems, getPendingSyncQueue, getSyncSummary, markSyncDone, markSyncFailed, markSyncing } from './offlineSyncEngine';
 import { isSupabaseReady } from './supabaseService';
+import { syncQueueItemToSupabase } from './supabaseSyncAdapter';
 
 export type SyncProcessorResult = {
   processed: number;
@@ -20,17 +21,38 @@ export async function processSyncQueue(): Promise<SyncProcessorResult> {
       done: 0,
       failed: 0,
       skipped: true,
-      message: 'Sync pausado: app offline ou Supabase não configurado.'
+      message: 'Sync pausado: app offline ou Supabase nao configurado.'
     };
   }
 
   const queue = getPendingSyncQueue();
+
+  if (queue.length === 0) {
+    const summary = getSyncSummary();
+
+    return {
+      processed: 0,
+      done: 0,
+      failed: 0,
+      skipped: false,
+      message: summary.blocked > 0
+        ? 'Sync pausado: limite de tentativas atingido em alguns itens.'
+        : 'Sync aguardando proxima tentativa.'
+    };
+  }
+
   let done = 0;
   let failed = 0;
 
   for (const item of queue) {
     try {
-      // Próxima etapa: trocar este mock pelo upsert/delete real no Supabase.
+      markSyncing(item.id);
+      const result = await syncQueueItemToSupabase(item);
+
+      if (!result.ok) {
+        throw new Error(result.message);
+      }
+
       markSyncDone(item.id);
       done += 1;
     } catch (error) {
@@ -46,7 +68,7 @@ export async function processSyncQueue(): Promise<SyncProcessorResult> {
     done,
     failed,
     skipped: false,
-    message: failed > 0 ? 'Sync concluído com pendências.' : 'Tudo sincronizado.'
+    message: failed > 0 ? 'Sync concluido com pendencias.' : 'Tudo sincronizado.'
   };
 }
 

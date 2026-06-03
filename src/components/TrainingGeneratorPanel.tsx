@@ -3,7 +3,7 @@ import { loadAppStore, saveStudentWorkouts } from '../store/appStore';
 import { createEightWeekCycle } from '../utils/trainingFactory';
 
 type Props = {
-  studentId: number;
+  studentId: string;
   frequency: number;
 };
 

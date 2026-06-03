@@ -1,23 +1,55 @@
-const metrics = [
-  ['Frequência semanal', '4/5', 'Boa aderência no ciclo'],
-  ['Volume válido', '42 séries', 'Somente séries válidas contam'],
-  ['Volume load', '18.450kg', 'Baseado no logbook'],
-  ['PRs do ciclo', '3', 'Carga, reps e execução']
-];
+import {
+  getProgressionInsights,
+  getRecentPRInsights,
+  getRecoveryInsights,
+  getWeeklyVolumeLoad,
+} from '../services/analyticsService';
+import { getStoredLogbookSets, getStoredWorkoutSessions } from '../services/logbookService';
+import { getStoredStudents } from '../services/studentService';
 
-const insights = [
-  ['Progressão', 'Manter microloading nos exercícios que bateram topo do range.'],
-  ['Recuperação', 'Monitorar queda de performance no próximo treino lower.'],
-  ['Volume', 'Volume semanal dentro da faixa recuperável atual.']
-];
+type Props = {
+  studentId?: string;
+};
 
-export default function StudentPerformanceDashboard() {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function isWithinLastDays(value: string | undefined, days: number) {
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) && Date.now() - time <= days * DAY_MS;
+}
+
+export default function StudentPerformanceDashboard({ studentId }: Props) {
+  const student = studentId ? getStoredStudents().find((item) => item.id === studentId) : undefined;
+  const weeklySessions = getStoredWorkoutSessions(studentId).filter((session) => (
+    session.status === 'completed' && isWithinLastDays(session.performed_at, 7)
+  ));
+  const weeklyValidSets = getStoredLogbookSets(studentId).filter((set) => (
+    set.set_type === 'valid' && isWithinLastDays(set.created_at || set.updated_at, 7)
+  ));
+  const weeklyVolumeLoad = getWeeklyVolumeLoad(studentId);
+  const recentPrs = getRecentPRInsights(6, studentId);
+  const targetFrequency = student?.training_frequency;
+
+  const metrics = [
+    ['Frequencia semanal', targetFrequency ? `${weeklySessions.length}/${targetFrequency}` : String(weeklySessions.length), 'Sessoes concluidas nos ultimos 7 dias'],
+    ['Volume valido', `${weeklyValidSets.length} series`, 'Somente series validas contam'],
+    ['Volume load', `${weeklyVolumeLoad}kg`, 'Baseado no logbook real'],
+    ['PRs recentes', String(recentPrs.length), 'Carga, reps e volume load'],
+  ];
+
+  const insights = [
+    ...getProgressionInsights(2, studentId),
+    ...getRecoveryInsights(2, studentId),
+    ...recentPrs.slice(0, 2),
+  ].slice(0, 3);
+
   return (
     <div style={panel}>
       <div style={head}>
         <div>
           <h2 style={{ margin: 0 }}>Dashboard individual DG TEAM</h2>
-          <p style={sub}>Leitura premium de performance, evolução e recuperação do aluno.</p>
+          <p style={sub}>Leitura premium de performance, evolucao e recuperacao do aluno.</p>
         </div>
         <span style={tag}>ALUNO</span>
       </div>
@@ -33,12 +65,17 @@ export default function StudentPerformanceDashboard() {
       </div>
 
       <div style={insightGrid}>
-        {insights.map(([title, text]) => (
-          <div key={title} style={insightCard}>
-            <strong>{title}</strong>
-            <p style={textStyle}>{text}</p>
+        {insights.length ? insights.map((insight) => (
+          <div key={`${insight.title}-${insight.detail}`} style={insightCard}>
+            <strong>{insight.title}</strong>
+            <p style={textStyle}>{insight.detail}</p>
           </div>
-        ))}
+        )) : (
+          <div style={insightCard}>
+            <strong>Aguardando logbook</strong>
+            <p style={textStyle}>Registre sets validos para gerar progresso, PRs e alertas reais.</p>
+          </div>
+        )}
       </div>
     </div>
   );

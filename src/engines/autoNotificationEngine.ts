@@ -1,5 +1,5 @@
 export type NotificationInput = {
-  studentId: number | string;
+  studentId: string;
   studentName?: string;
   retentionLevel?: 'low' | 'medium' | 'high' | 'critical';
   checkinLate?: boolean;

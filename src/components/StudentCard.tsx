@@ -1,16 +1,16 @@
 type Props = {
   name: string;
   goal: string;
-  frequency: number;
-  priorities: string[];
+  training_frequency: number;
+  priority_muscles: string[];
   onClick: () => void;
 };
 
 export default function StudentCard({
   name,
   goal,
-  frequency,
-  priorities,
+  training_frequency,
+  priority_muscles,
   onClick
 }: Props) {
   return (
@@ -30,7 +30,7 @@ export default function StudentCard({
       <p style={{ color: '#a0a0a0', marginBottom: 6 }}>{goal}</p>
 
       <p style={{ color: '#a0a0a0', marginBottom: 14 }}>
-        {frequency}x por semana
+        {training_frequency}x por semana
       </p>
 
       <div
@@ -43,7 +43,7 @@ export default function StudentCard({
           color: '#ffb4b4'
         }}
       >
-        {priorities.join(' + ')}
+        {priority_muscles.join(' + ')}
       </div>
     </div>
   );

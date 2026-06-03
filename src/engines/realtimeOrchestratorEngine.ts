@@ -13,7 +13,7 @@ export type RealtimeEventType =
 
 export type RealtimeOrchestratorInput = {
   eventType: RealtimeEventType;
-  studentId: number | string;
+  studentId: string;
   studentName?: string;
   notification?: NotificationInput;
   retention?: RetentionInput;

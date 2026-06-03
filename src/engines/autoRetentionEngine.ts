@@ -1,5 +1,5 @@
 export type RetentionInput = {
-  studentId: number | string;
+  studentId: string;
   studentName?: string;
   attendanceRate?: number;
   daysSinceLastWorkout?: number;

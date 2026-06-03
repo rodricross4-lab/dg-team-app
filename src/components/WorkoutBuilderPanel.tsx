@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { exerciseLibrary, formatRepRange, formatRest } from '../data/exerciseLibrary';
+import { loadAppStore } from '../store/appStore';
 import { getStudentWorkouts, upsertWorkout } from '../store/operationalStore';
+import { exportWorkoutPdf } from '../utils/pdfExport';
 
-type Props = { studentId: number };
+type Props = { studentId: string };
 
 type ExerciseRow = {
-  id: number;
+  id: string;
   name: string;
   group: string;
   warmup: string;
@@ -15,26 +18,54 @@ type ExerciseRow = {
   notes: string;
 };
 
-const defaultExercise: ExerciseRow = {
-  id: 1,
-  name: 'Supino inclinado halteres',
-  group: 'Peitoral',
+const defaultPreset = exerciseLibrary.find((exercise) => exercise.id === 'global-supino-inclinado-halteres') ?? exerciseLibrary[0];
+
+const defaultExercise = {
+  name: defaultPreset.name,
+  group: defaultPreset.muscle_group,
   warmup: '1x 10-12',
   feeder: '2x progressivas',
   validSets: '2',
-  reps: '6-10',
-  rest: '2-3 min',
-  notes: 'Séries válidas próximas da falha. Bateu topo do range, subir carga.'
+  reps: formatRepRange(defaultPreset),
+  rest: formatRest(defaultPreset),
+  notes: defaultPreset.notes || 'Series validas proximas da falha. Bateu topo do range, subir carga.'
 };
+
+function createExerciseRow(patch: Partial<ExerciseRow> = {}): ExerciseRow {
+  return {
+    ...defaultExercise,
+    id: crypto.randomUUID(),
+    ...patch
+  };
+}
+
+function createExerciseRowFromPreset(presetId: string, id: string = crypto.randomUUID()): ExerciseRow {
+  const preset = exerciseLibrary.find((exercise) => exercise.id === presetId) ?? defaultPreset;
+
+  return {
+    ...defaultExercise,
+    id,
+    name: preset.name,
+    group: preset.muscle_group,
+    reps: formatRepRange(preset),
+    rest: formatRest(preset),
+    notes: preset.notes || defaultExercise.notes
+  };
+}
+
+function getStudentName(studentId: string) {
+  return loadAppStore().students.find((student) => student.id === studentId)?.name || 'Aluno';
+}
 
 export default function WorkoutBuilderPanel({ studentId }: Props) {
   const [workoutName, setWorkoutName] = useState('Treino A');
   const [week, setWeek] = useState('Semana 1');
-  const [exercises, setExercises] = useState<ExerciseRow[]>([defaultExercise]);
+  const [workoutId] = useState(() => crypto.randomUUID());
+  const [exercises, setExercises] = useState<ExerciseRow[]>(() => [createExerciseRow()]);
   const [savedAt, setSavedAt] = useState('');
   const [savedCount, setSavedCount] = useState(() => getStudentWorkouts(studentId).length);
 
-  function updateExercise(id: number, patch: Partial<ExerciseRow>) {
+  function updateExercise(id: string, patch: Partial<ExerciseRow>) {
     setExercises((current) =>
       current.map((exercise) =>
         exercise.id === id ? { ...exercise, ...patch } : exercise
@@ -45,16 +76,16 @@ export default function WorkoutBuilderPanel({ studentId }: Props) {
   function addExercise() {
     setExercises((current) => [
       ...current,
-      {
-        ...defaultExercise,
-        id: Date.now(),
-        name: 'Novo exercício',
-        group: 'Grupamento'
-      }
+      createExerciseRowFromPreset(exerciseLibrary[current.length % exerciseLibrary.length].id)
     ]);
   }
 
-  function removeExercise(id: number) {
+  function applyExercisePreset(id: string, presetId: string) {
+    if (!presetId) return;
+    updateExercise(id, createExerciseRowFromPreset(presetId, id));
+  }
+
+  function removeExercise(id: string) {
     setExercises((current) => current.filter((exercise) => exercise.id !== id));
   }
 
@@ -63,31 +94,32 @@ export default function WorkoutBuilderPanel({ studentId }: Props) {
     const updatedAt = new Date().toISOString();
 
     upsertWorkout({
-      id: `${studentId}-${weekNumber}-${workoutName}`,
+      id: workoutId,
       studentId,
       week: weekNumber,
       name: workoutName,
       updatedAt,
-      exercises: exercises.map((exercise) => ({
-        ...exercise,
-        id: String(exercise.id)
-      }))
+      exercises
     });
 
     setSavedAt(updatedAt);
     setSavedCount(getStudentWorkouts(studentId).length);
   }
 
+  function exportPdf() {
+    exportWorkoutPdf(getStudentName(studentId), `${workoutName} - ${week}`, exercises);
+  }
+
   return (
     <div style={panel}>
       <h2 style={{ marginBottom: 10 }}>Editor de treino do aluno</h2>
       <p style={{ color: '#a0a0a0', marginBottom: 18 }}>
-        Crie, edite e organize os treinos semanais do aluno com séries de aquecimento, ajuste e válidas.
+        Crie, edite e organize os treinos semanais do aluno com series de aquecimento, ajuste e validas.
       </p>
 
       <div style={statusBox}>
         <span>Treinos salvos deste aluno: <strong>{savedCount}</strong></span>
-        <span>Último salvamento: <strong>{savedAt || 'ainda não salvo'}</strong></span>
+        <span>Ultimo salvamento: <strong>{savedAt || 'ainda nao salvo'}</strong></span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
@@ -108,22 +140,29 @@ export default function WorkoutBuilderPanel({ studentId }: Props) {
             </div>
 
             <div style={grid}>
-              <input value={exercise.name} onChange={(event) => updateExercise(exercise.id, { name: event.target.value })} style={input} placeholder="Exercício" />
+              <select value={exerciseLibrary.find((preset) => preset.name === exercise.name)?.id || ''} onChange={(event) => applyExercisePreset(exercise.id, event.target.value)} style={input}>
+                <option value="">Exercicio personalizado</option>
+                {exerciseLibrary.map((preset) => (
+                  <option key={preset.id} value={preset.id}>{preset.name}</option>
+                ))}
+              </select>
+              <input value={exercise.name} onChange={(event) => updateExercise(exercise.id, { name: event.target.value })} style={input} placeholder="Exercicio" />
               <input value={exercise.group} onChange={(event) => updateExercise(exercise.id, { group: event.target.value })} style={input} placeholder="Grupamento" />
               <input value={exercise.warmup} onChange={(event) => updateExercise(exercise.id, { warmup: event.target.value })} style={input} placeholder="Aquecimento" />
-              <input value={exercise.feeder} onChange={(event) => updateExercise(exercise.id, { feeder: event.target.value })} style={input} placeholder="Séries de ajuste" />
-              <input value={exercise.validSets} onChange={(event) => updateExercise(exercise.id, { validSets: event.target.value })} style={input} placeholder="Séries válidas" />
+              <input value={exercise.feeder} onChange={(event) => updateExercise(exercise.id, { feeder: event.target.value })} style={input} placeholder="Series de ajuste" />
+              <input value={exercise.validSets} onChange={(event) => updateExercise(exercise.id, { validSets: event.target.value })} style={input} placeholder="Series validas" />
               <input value={exercise.reps} onChange={(event) => updateExercise(exercise.id, { reps: event.target.value })} style={input} placeholder="Range reps" />
               <input value={exercise.rest} onChange={(event) => updateExercise(exercise.id, { rest: event.target.value })} style={input} placeholder="Descanso" />
             </div>
 
-            <textarea value={exercise.notes} onChange={(event) => updateExercise(exercise.id, { notes: event.target.value })} style={{ ...input, minHeight: 80, marginTop: 12 }} placeholder="Observações técnicas" />
+            <textarea value={exercise.notes} onChange={(event) => updateExercise(exercise.id, { notes: event.target.value })} style={{ ...input, minHeight: 80, marginTop: 12 }} placeholder="Observacoes tecnicas" />
           </div>
         ))}
       </div>
 
-      <button onClick={addExercise} style={button}>+ Adicionar exercício</button>
+      <button onClick={addExercise} style={button}>+ Adicionar exercicio</button>
       <button onClick={saveWorkout} style={saveButton}>SALVAR TREINO DO ALUNO</button>
+      <button onClick={exportPdf} style={button}>EXPORTAR PDF DO TREINO</button>
     </div>
   );
 }

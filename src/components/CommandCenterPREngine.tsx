@@ -1,27 +1,30 @@
-const prs = [
-  ['PR de carga', 'Hip thrust', '+10kg no ciclo atual'],
-  ['PR de reps', 'Supino inclinado', '+2 reps mantendo execução'],
-  ['PR técnico', 'Hack machine', 'Mais amplitude e controle'],
-  ['PR consolidado', 'Remada articulada', 'Carga repetida com melhor estabilidade']
-];
+import { getRecentPRInsights } from '../services/analyticsService';
 
 export default function CommandCenterPREngine() {
+  const prs = getRecentPRInsights();
+
   return (
     <div style={panel}>
       <div style={head}>
         <div>
           <h3 style={{ margin: 0 }}>PR Engine</h3>
-          <p style={sub}>Detecção de evolução por carga, reps e qualidade técnica.</p>
+          <p style={sub}>Deteccao de evolucao por carga, reps e qualidade tecnica.</p>
         </div>
         <span style={tag}>PRS</span>
       </div>
 
-      {prs.map(([type, exercise, result]) => (
-        <div key={`${type}-${exercise}`} style={item}>
-          <strong>{type}</strong>
-          <p style={text}>{exercise} — {result}</p>
+      {prs.length ? prs.map((pr) => (
+        <div key={`${pr.title}-${pr.detail}`} style={item}>
+          <strong>{pr.title}</strong>
+          <p style={text}>{pr.detail}</p>
+          <span style={muted}>{pr.action}</span>
         </div>
-      ))}
+      )) : (
+        <div style={item}>
+          <strong>Sem PR recente</strong>
+          <p style={text}>Registre novas series validas para detectar PRs reais.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -56,3 +59,4 @@ const item = {
   marginBottom: 10
 };
 const text = { color: '#aaa', margin: '7px 0 0', lineHeight: 1.45 };
+const muted = { color: '#ffb8b8', fontSize: 12, fontWeight: 900 };

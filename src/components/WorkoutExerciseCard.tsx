@@ -1,7 +1,7 @@
-import type { WorkoutExercise } from '../types';
+import type { GeneratedWorkoutExercise } from '../types';
 
 type Props = {
-  exercise: WorkoutExercise;
+  exercise: GeneratedWorkoutExercise;
 };
 
 export default function WorkoutExerciseCard({ exercise }: Props) {

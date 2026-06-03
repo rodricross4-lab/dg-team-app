@@ -1,6 +1,6 @@
-import type { WorkoutSession } from '../types';
+import type { GeneratedWorkout } from '../types';
 
-export function generateDGInsights(workouts: WorkoutSession[]) {
+export function generateDGInsights(workouts: GeneratedWorkout[]) {
   const insights: string[] = [];
 
   const validSets = workouts.flatMap((workout) =>

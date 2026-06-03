@@ -12,7 +12,7 @@ export type EditableExercise = {
 
 export type EditableWorkout = {
   id: string;
-  studentId: number;
+  studentId: string;
   week: number;
   name: string;
   exercises: EditableExercise[];
@@ -20,18 +20,25 @@ export type EditableWorkout = {
 };
 
 export type EditableAssessment = {
-  studentId: number;
+  studentId: string;
   week: 1 | 4 | 8;
+  protocol?: '7-site' | '3-site' | 'custom';
   weight: string;
   bodyFat: string;
   waist: string;
+  abdomen?: string;
+  hip?: string;
+  chest?: string;
   arm: string;
+  thigh?: string;
+  calf?: string;
   notes: string;
+  createdAt?: string;
   updatedAt: string;
 };
 
 export type EditablePeriodizationWeek = {
-  studentId: number;
+  studentId: string;
   week: number;
   focus: string;
   intensity: string;
@@ -93,7 +100,7 @@ export function deleteWorkout(id: string) {
   return next;
 }
 
-export function getStudentWorkouts(studentId: number) {
+export function getStudentWorkouts(studentId: string) {
   return loadOperationalStore().workouts.filter((item) => item.studentId === studentId);
 }
 
@@ -110,7 +117,7 @@ export function upsertAssessment(assessment: EditableAssessment) {
   return next;
 }
 
-export function getStudentAssessments(studentId: number) {
+export function getStudentAssessments(studentId: string) {
   return loadOperationalStore().assessments.filter((item) => item.studentId === studentId);
 }
 
@@ -127,6 +134,6 @@ export function upsertPeriodizationWeek(week: EditablePeriodizationWeek) {
   return next;
 }
 
-export function getStudentPeriodization(studentId: number) {
+export function getStudentPeriodization(studentId: string) {
   return loadOperationalStore().periodization.filter((item) => item.studentId === studentId);
 }

@@ -1,6 +1,6 @@
-import type { WorkoutSession } from '../types';
+import type { GeneratedWorkout } from '../types';
 
-export function getWorkoutSummary(workout: WorkoutSession) {
+export function getWorkoutSummary(workout: GeneratedWorkout) {
   const validSets = workout.exercises.flatMap((exercise) =>
     exercise.sets.filter((set) => set.countsVolume)
   );

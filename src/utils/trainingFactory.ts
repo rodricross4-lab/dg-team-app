@@ -1,17 +1,28 @@
-import type { WorkoutSession } from '../types';
+import type { GeneratedWorkout } from '../types';
+import { exerciseLibrary, formatRepRange, formatRest } from '../data/exerciseLibrary';
 
 const weeks = Array.from({ length: 8 }, (_, index) => index + 1);
 const workoutNames = ['Treino A', 'Treino B', 'Treino C', 'Treino D', 'Treino E', 'Treino F'];
 
-const defaultExercises = [
-  { name: 'Supino inclinado halteres', group: 'Peitoral', range: '5-10', rest: '2-4 min' },
-  { name: 'Remada articulada', group: 'Costas', range: '5-10', rest: '2-4 min' },
-  { name: 'Hack machine', group: 'Quadríceps', range: '5-10', rest: '2-4 min' },
-  { name: 'Mesa flexora', group: 'Posteriores', range: '8-15', rest: '60-120s' },
-  { name: 'Elevação lateral cabo', group: 'Deltoide lateral', range: '10-20', rest: '60-90s' }
+const defaultExerciseIds = [
+  'global-supino-inclinado-halteres',
+  'global-remada-articulada',
+  'global-hack-machine',
+  'global-mesa-flexora',
+  'global-elevacao-lateral-cabo'
 ];
 
-export function createEightWeekCycle(frequency: number): WorkoutSession[] {
+const defaultExercises = defaultExerciseIds
+  .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
+  .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
+  .map((exercise) => ({
+    name: exercise.name,
+    group: exercise.muscle_group,
+    range: formatRepRange(exercise),
+    rest: formatRest(exercise)
+  }));
+
+export function createEightWeekCycle(frequency: number): GeneratedWorkout[] {
   const selectedWorkouts = workoutNames.slice(0, frequency);
 
   return weeks.flatMap((week) =>

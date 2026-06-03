@@ -1,0 +1,350 @@
+import type { LogbookSet, PersonalRecord } from '../types/logbook';
+
+export type ProgressionDecision = {
+  status: 'increase_load' | 'consolidate' | 'maintain' | 'performance_drop' | 'insufficient_data';
+  label: string;
+  message: string;
+  priority: 'success' | 'info' | 'warning' | 'danger';
+};
+
+export type RecoveryAlert = {
+  type: 'performance_drop' | 'low_quality' | 'high_fatigue' | 'too_easy' | 'high_volume';
+  label: string;
+  message: string;
+  severity: 'info' | 'warning' | 'danger';
+};
+
+export function isValidSet(set: LogbookSet): boolean {
+  return set.set_type === 'valid';
+}
+
+export function calculateValidVolume(sets: LogbookSet[]): number {
+  return sets.filter(isValidSet).length;
+}
+
+export function calculateVolumeLoad(sets: LogbookSet[]): number {
+  return sets
+    .filter(isValidSet)
+    .reduce((acc, set) => {
+      const weight = set.weight_kg || 0;
+      const reps = set.reps || 0;
+      return acc + weight * reps;
+    }, 0);
+}
+
+export function shouldIncreaseLoad(params: {
+  reps: number;
+  targetMax: number;
+  rir?: number;
+  executionQuality?: number;
+}): boolean {
+  const { reps, targetMax, rir = 99, executionQuality = 0 } = params;
+
+  return reps >= targetMax && rir <= 2 && executionQuality >= 4;
+}
+
+export function shouldMaintainLoad(params: {
+  reps: number;
+  targetMin: number;
+  targetMax: number;
+}): boolean {
+  const { reps, targetMin, targetMax } = params;
+
+  return reps >= targetMin && reps <= targetMax;
+}
+
+export function detectPerformanceDrop(history: number[]): boolean {
+  if (history.length < 2) return false;
+
+  const last = history[history.length - 1];
+  const previous = history[history.length - 2];
+
+  return last < previous;
+}
+
+export function detectConsecutivePerformanceDrop(history: number[]): boolean {
+  if (history.length < 3) return false;
+
+  const current = history[history.length - 1];
+  const previous = history[history.length - 2];
+  const beforePrevious = history[history.length - 3];
+
+  return current < previous && previous < beforePrevious;
+}
+
+export function detectQualityProgression(params: {
+  currentExecutionQuality?: number;
+  previousExecutionQuality?: number;
+  currentLoad?: number;
+  previousLoad?: number;
+  currentReps?: number;
+  previousReps?: number;
+}): boolean {
+  const {
+    currentExecutionQuality = 0,
+    previousExecutionQuality = 0,
+    currentLoad = 0,
+    previousLoad = 0,
+    currentReps = 0,
+    previousReps = 0,
+  } = params;
+
+  return (
+    currentExecutionQuality > previousExecutionQuality &&
+    currentLoad === previousLoad &&
+    currentReps === previousReps
+  );
+}
+
+export function getBestValidSet(sets: LogbookSet[]): LogbookSet | null {
+  const validSets = sets.filter(isValidSet);
+
+  if (!validSets.length) return null;
+
+  return validSets.reduce((best, current) => {
+    const bestScore = (best.weight_kg || 0) * (best.reps || 0);
+    const currentScore = (current.weight_kg || 0) * (current.reps || 0);
+
+    return currentScore > bestScore ? current : best;
+  }, validSets[0]);
+}
+
+export function detectPersonalRecords(params: {
+  currentSets: LogbookSet[];
+  previousSets?: LogbookSet[];
+}): PersonalRecord[] {
+  const currentBest = getBestValidSet(params.currentSets);
+  const previousBest = getBestValidSet(params.previousSets || []);
+
+  if (!currentBest) return [];
+
+  const prs: PersonalRecord[] = [];
+
+  const currentLoad = currentBest.weight_kg || 0;
+  const previousLoad = previousBest?.weight_kg || 0;
+
+  if (currentLoad > previousLoad) {
+    prs.push({
+      type: 'load',
+      label: 'Novo PR de carga',
+      previousValue: previousLoad,
+      currentValue: currentLoad,
+      message: `🏆 Nova maior carga registrada: ${currentLoad}kg.`
+    });
+  }
+
+  const currentReps = currentBest.reps || 0;
+  const previousReps = previousBest?.reps || 0;
+
+  if (currentReps > previousReps) {
+    prs.push({
+      type: 'reps',
+      label: 'Novo PR de repetições',
+      previousValue: previousReps,
+      currentValue: currentReps,
+      message: `🏆 Novo recorde de repetições: ${currentReps} reps.`
+    });
+  }
+
+  const currentVolumeLoad = calculateVolumeLoad(params.currentSets);
+  const previousVolumeLoad = calculateVolumeLoad(params.previousSets || []);
+
+  if (currentVolumeLoad > previousVolumeLoad) {
+    prs.push({
+      type: 'volume_load',
+      label: 'Novo PR de volume load',
+      previousValue: previousVolumeLoad,
+      currentValue: currentVolumeLoad,
+      message: `🏆 Novo recorde de volume load: ${currentVolumeLoad}kg.`
+    });
+  }
+
+  const currentQuality = currentBest.execution_quality || 0;
+  const previousQuality = previousBest?.execution_quality || 0;
+
+  if (currentQuality > previousQuality) {
+    prs.push({
+      type: 'quality',
+      label: 'Novo PR de execução',
+      previousValue: previousQuality,
+      currentValue: currentQuality,
+      message: '🏆 Melhor execução registrada neste exercício.'
+    });
+  }
+
+  return prs;
+}
+
+export function analyzeRecovery(params: {
+  currentSets: LogbookSet[];
+  previousSets?: LogbookSet[];
+  maxRecommendedValidSets?: number;
+}): RecoveryAlert[] {
+  const currentValidSets = params.currentSets.filter(isValidSet);
+  const previousValidSets = (params.previousSets || []).filter(isValidSet);
+  const alerts: RecoveryAlert[] = [];
+
+  if (!currentValidSets.length) return alerts;
+
+  const currentVolumeLoad = calculateVolumeLoad(currentValidSets);
+  const previousVolumeLoad = calculateVolumeLoad(previousValidSets);
+  const bestCurrent = getBestValidSet(currentValidSets);
+  const bestPrevious = getBestValidSet(previousValidSets);
+
+  if (bestCurrent && bestPrevious) {
+    const currentScore = (bestCurrent.weight_kg || 0) * (bestCurrent.reps || 0);
+    const previousScore = (bestPrevious.weight_kg || 0) * (bestPrevious.reps || 0);
+
+    if (currentScore < previousScore && (bestCurrent.reps || 0) < (bestPrevious.reps || 0)) {
+      alerts.push({
+        type: 'performance_drop',
+        label: 'Queda de performance',
+        message: 'Performance caiu contra a sessão anterior. Manter carga, revisar sono/recuperação e evitar aumentar volume agora.',
+        severity: 'danger',
+      });
+    }
+  }
+
+  const lowQualitySets = currentValidSets.filter((set) => (set.execution_quality || 0) <= 2);
+  if (lowQualitySets.length > 0) {
+    alerts.push({
+      type: 'low_quality',
+      label: 'Execução abaixo do padrão',
+      message: 'Há séries válidas com execução ruim. Priorizar estabilidade, amplitude eficiente e controle antes de carga.',
+      severity: 'warning',
+    });
+  }
+
+  const highFatigueSets = currentValidSets.filter((set) => (set.rir ?? 99) <= 0);
+  if (highFatigueSets.length >= 2) {
+    alerts.push({
+      type: 'high_fatigue',
+      label: 'Fadiga alta',
+      message: 'Muitas séries em falha ou RIR 0. Monitorar recuperação e evitar aumentar volume na próxima sessão.',
+      severity: 'warning',
+    });
+  }
+
+  const tooEasySets = currentValidSets.filter((set) => (set.rir ?? 0) >= 4);
+  if (tooEasySets.length === currentValidSets.length && currentValidSets.length > 0) {
+    alerts.push({
+      type: 'too_easy',
+      label: 'Intensidade possivelmente baixa',
+      message: 'Todas as séries válidas ficaram longe da falha. Ajustar carga ou proximidade da falha para gerar tensão efetiva.',
+      severity: 'info',
+    });
+  }
+
+  if (params.maxRecommendedValidSets && currentValidSets.length > params.maxRecommendedValidSets) {
+    alerts.push({
+      type: 'high_volume',
+      label: 'Volume acima do planejado',
+      message: 'Número de séries válidas passou do recomendado. Avaliar se isso é recuperável antes de repetir.',
+      severity: 'warning',
+    });
+  }
+
+  if (previousVolumeLoad > 0 && currentVolumeLoad < previousVolumeLoad * 0.85) {
+    alerts.push({
+      type: 'performance_drop',
+      label: 'Volume load caiu',
+      message: 'Volume load ficou mais de 15% abaixo da sessão anterior. Revisar fadiga, descanso e escolha de exercício.',
+      severity: 'warning',
+    });
+  }
+
+  return alerts;
+}
+
+export function analyzeProgression(params: {
+  currentSets: LogbookSet[];
+  previousSets?: LogbookSet[];
+  targetMin: number;
+  targetMax: number;
+}): ProgressionDecision {
+  const { currentSets, previousSets = [], targetMin, targetMax } = params;
+  const currentBest = getBestValidSet(currentSets);
+  const previousBest = getBestValidSet(previousSets);
+
+  if (!currentBest) {
+    return {
+      status: 'insufficient_data',
+      label: 'Sem dados suficientes',
+      message: 'Registre pelo menos uma série válida para gerar decisão DG Team.',
+      priority: 'info',
+    };
+  }
+
+  const currentLoad = currentBest.weight_kg || 0;
+  const currentReps = currentBest.reps || 0;
+  const currentRir = currentBest.rir ?? 99;
+  const currentQuality = currentBest.execution_quality || 0;
+
+  if (previousBest) {
+    const previousLoad = previousBest.weight_kg || 0;
+    const previousReps = previousBest.reps || 0;
+    const previousQuality = previousBest.execution_quality || 0;
+
+    const currentScore = currentLoad * currentReps;
+    const previousScore = previousLoad * previousReps;
+
+    if (currentScore < previousScore && currentReps < previousReps) {
+      return {
+        status: 'performance_drop',
+        label: 'Queda de performance',
+        message: 'Performance caiu em relação à sessão anterior. Avaliar sono, recuperação, volume e proximidade da falha antes de subir carga.',
+        priority: 'danger',
+      };
+    }
+
+    if (
+      detectQualityProgression({
+        currentExecutionQuality: currentQuality,
+        previousExecutionQuality: previousQuality,
+        currentLoad,
+        previousLoad,
+        currentReps,
+        previousReps,
+      })
+    ) {
+      return {
+        status: 'maintain',
+        label: 'Progressão de qualidade',
+        message: 'Mesma carga e reps com execução melhor. Manter estratégia e consolidar antes de novo salto.',
+        priority: 'success',
+      };
+    }
+  }
+
+  if (
+    shouldIncreaseLoad({
+      reps: currentReps,
+      targetMax,
+      rir: currentRir,
+      executionQuality: currentQuality,
+    })
+  ) {
+    return {
+      status: 'increase_load',
+      label: 'Subir carga',
+      message: 'Bateu topo do range com boa execução e RIR adequado. Sugerir microloading na próxima sessão.',
+      priority: 'success',
+    };
+  }
+
+  if (shouldMaintainLoad({ reps: currentReps, targetMin, targetMax })) {
+    return {
+      status: 'consolidate',
+      label: 'Consolidar carga',
+      message: 'Está dentro do range. Manter carga e buscar mais reps ou mais qualidade antes de progredir.',
+      priority: 'info',
+    };
+  }
+
+  return {
+    status: 'maintain',
+    label: 'Manter e ajustar execução',
+    message: 'Ainda abaixo do range alvo. Priorizar execução, estabilidade e recuperação antes de aumentar carga.',
+    priority: 'warning',
+  };
+}

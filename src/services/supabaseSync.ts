@@ -1,22 +1,8 @@
 import { loadAppStore } from '../store/appStore';
 import { loadOperationalStore } from '../store/operationalStore';
+import { getStoredLogbookSets, getStoredWorkoutSessions } from './logbookService';
+import { getStoredProgressPhotos, toSupabasePhotoPayload } from './photoService';
 import { isSupabaseConfigured, supabase } from './supabaseClient';
-
-const LOG_KEY = 'dg-team-logbook-store';
-
-function loadLogbookEntries() {
-  return Object.keys(localStorage)
-    .filter((key) => key.startsWith(LOG_KEY))
-    .flatMap((key) => {
-      try {
-        const studentId = Number(key.replace(`${LOG_KEY}-`, ''));
-        const entries = JSON.parse(localStorage.getItem(key) || '[]');
-        return entries.map((entry: any) => ({ ...entry, student_id_local: studentId }));
-      } catch {
-        return [];
-      }
-    });
-}
 
 function getCloudDisabledResult(module: string) {
   return {
@@ -37,29 +23,51 @@ function getCloudResult(module: string, ok: boolean, count: number, message: str
   };
 }
 
-async function safeUpsert(module: string, table: string, rows: any[]) {
+async function safeUpsert(module: string, table: string, rows: Record<string, unknown>[]) {
   if (!isSupabaseConfigured() || !supabase) return getCloudDisabledResult(module);
   if (rows.length === 0) return getCloudResult(module, true, 0, `${module}: nenhum registro para sincronizar.`);
 
-  const { error } = await supabase.from(table).upsert(rows as any);
+  const { error } = await supabase.from(table).upsert(rows);
 
   if (error) return getCloudResult(module, false, rows.length, error.message);
   return getCloudResult(module, true, rows.length, `${module}: ${rows.length} registro(s) sincronizados.`);
 }
 
+function parseNumber(value?: string) {
+  if (!value?.trim()) return null;
+  const parsed = Number(value.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function cleanNumberMap(values: Record<string, number | null>) {
+  return Object.fromEntries(
+    Object.entries(values).filter(([, value]) => value !== null)
+  );
+}
+
 export async function syncStudentsToCloud() {
   const store = loadAppStore();
-  const rows = store.students.map((student: any) => ({
+  const rows = store.students.map((student) => ({
     id: student.id,
+    tenant_id: student.tenant_id,
+    coach_id: student.coach_id,
+    user_id: student.user_id ?? null,
     name: student.name,
-    age: student.age,
-    weight: student.weight,
-    height: student.height,
+    email: student.email ?? null,
+    phone: student.phone ?? null,
+    birth_date: student.birth_date ?? null,
+    age: student.age ?? null,
+    weight_kg: student.weight_kg ?? null,
+    height_cm: student.height_cm ?? null,
     goal: student.goal,
     phase: student.phase,
-    frequency: student.frequency,
-    priority: student.priority || [],
-    updated_at: new Date().toISOString()
+    training_frequency: student.training_frequency,
+    priority_muscles: student.priority_muscles,
+    alerts: student.alerts ?? [],
+    status: student.status,
+    created_at: student.created_at,
+    updated_at: student.updated_at,
+    deleted_at: student.deleted_at ?? null
   }));
 
   return safeUpsert('students', 'students', rows);
@@ -67,72 +75,121 @@ export async function syncStudentsToCloud() {
 
 export async function syncWorkoutsToCloud() {
   const store = loadOperationalStore();
-  const rows = store.workouts.map((workout: any) => ({
-    id: workout.id,
-    student_id: workout.studentId,
-    week: workout.week,
-    name: workout.name,
-    exercises: workout.exercises || [],
-    updated_at: workout.updatedAt || new Date().toISOString()
-  }));
+  const students = new Map(loadAppStore().students.map((student) => [student.id, student]));
+  const rows = store.workouts.flatMap((workout) => {
+    const student = students.get(workout.studentId);
+    if (!student?.tenant_id) return [];
+
+    return [{
+      id: workout.id,
+      tenant_id: student.tenant_id,
+      coach_id: student.coach_id,
+      student_id: workout.studentId,
+      week: workout.week,
+      name: workout.name,
+      exercises: workout.exercises || [],
+      is_active: true,
+      updated_at: workout.updatedAt || new Date().toISOString()
+    }];
+  });
 
   return safeUpsert('workouts', 'workouts', rows);
 }
 
 export async function syncAssessmentsToCloud() {
   const store = loadOperationalStore();
-  const rows = store.assessments.map((assessment: any) => ({
-    student_id: assessment.studentId,
-    week: assessment.week,
-    weight: assessment.weight,
-    body_fat: assessment.bodyFat,
-    waist: assessment.waist,
-    arm: assessment.arm,
-    notes: assessment.notes,
-    updated_at: assessment.updatedAt || new Date().toISOString()
-  }));
+  const students = new Map(loadAppStore().students.map((student) => [student.id, student]));
+  const rows = store.assessments.flatMap((assessment) => {
+    const student = students.get(assessment.studentId);
+    if (!student?.tenant_id) return [];
+
+    const weight = parseNumber(assessment.weight);
+    const bodyFat = parseNumber(assessment.bodyFat);
+    const leanMass = weight !== null && bodyFat !== null
+      ? Math.round(weight * (1 - bodyFat / 100) * 10) / 10
+      : null;
+
+    return [{
+      id: `${assessment.studentId}-assessment-week-${assessment.week}`,
+      tenant_id: student.tenant_id,
+      student_id: assessment.studentId,
+      protocol: assessment.protocol || 'custom',
+      week: assessment.week,
+      weight_kg: weight,
+      body_fat_percentage: bodyFat,
+      lean_mass_kg: leanMass,
+      circumference: cleanNumberMap({
+        waist: parseNumber(assessment.waist),
+        abdomen: parseNumber(assessment.abdomen),
+        hip: parseNumber(assessment.hip),
+        chest: parseNumber(assessment.chest),
+        flexed_arm: parseNumber(assessment.arm),
+        thigh: parseNumber(assessment.thigh),
+        calf: parseNumber(assessment.calf)
+      }),
+      skinfolds: {},
+      notes: assessment.notes || null,
+      created_at: assessment.createdAt || assessment.updatedAt || new Date().toISOString(),
+      updated_at: assessment.updatedAt || new Date().toISOString()
+    }];
+  });
 
   return safeUpsert('assessments', 'assessments', rows);
 }
 
 export async function syncPeriodizationToCloud() {
   const store = loadOperationalStore();
-  const rows = store.periodization.map((week: any) => ({
-    student_id: week.studentId,
-    week: week.week,
-    focus: week.focus,
-    intensity: week.intensity,
-    volume: week.volume,
-    deload: week.deload,
-    notes: week.notes,
-    updated_at: week.updatedAt || new Date().toISOString()
-  }));
+  const students = new Map(loadAppStore().students.map((student) => [student.id, student]));
+  const rows = store.periodization.flatMap((week) => {
+    const student = students.get(week.studentId);
+    if (!student?.tenant_id) return [];
+
+    return [{
+      id: `${week.studentId}-periodization-week-${week.week}`,
+      tenant_id: student.tenant_id,
+      student_id: week.studentId,
+      week: week.week,
+      focus: week.focus,
+      intensity: week.intensity,
+      volume: week.volume,
+      deload: week.deload,
+      notes: week.notes,
+      updated_at: week.updatedAt || new Date().toISOString()
+    }];
+  });
 
   return safeUpsert('periodization', 'periodization_weeks', rows);
 }
 
 export async function syncLogbookToCloud() {
-  const entries = loadLogbookEntries();
-  const rows = entries.map((entry: any) => ({
-    student_id: entry.student_id_local,
-    exercise_id: entry.exerciseId,
-    load: entry.load,
-    reps: entry.reps,
-    rir: entry.rir,
-    execution: entry.execution,
-    created_at: new Date().toISOString()
-  }));
+  const rows = getStoredLogbookSets().map((set) => ({ ...set }));
 
-  return safeUpsert('logbook', 'logbook_entries', rows);
+  return safeUpsert('logbook', 'logbook_sets', rows);
+}
+
+export async function syncWorkoutSessionsToCloud() {
+  const rows = getStoredWorkoutSessions().map((session) => ({ ...session }));
+
+  return safeUpsert('workout_sessions', 'workout_sessions', rows);
+}
+
+export async function syncPhotosToCloud() {
+  const rows = getStoredProgressPhotos()
+    .filter((photo) => Boolean(photo.tenant_id))
+    .map((photo) => toSupabasePhotoPayload(photo));
+
+  return safeUpsert('photos', 'photos', rows);
 }
 
 export async function runFullCloudSync() {
   const results = await Promise.all([
     syncStudentsToCloud(),
     syncWorkoutsToCloud(),
+    syncWorkoutSessionsToCloud(),
     syncAssessmentsToCloud(),
     syncPeriodizationToCloud(),
-    syncLogbookToCloud()
+    syncLogbookToCloud(),
+    syncPhotosToCloud()
   ]);
 
   return {

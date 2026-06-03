@@ -1,50 +1,79 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Student } from '../types';
-import { addStudent, editStudent, loadAppStore, removeStudent } from '../store/appStore';
+import { archiveStudent, fetchStudents, saveStudent } from '../services/studentService';
+import { requireTenantContext } from '../services/tenantContextService';
 
-export default function StudentCrudPanel() {
-  const [store, setStore] = useState(loadAppStore());
+type Props = {
+  onStudentsChange?: (students: Student[]) => void;
+};
+
+export default function StudentCrudPanel({ onStudentsChange }: Props) {
+  const [students, setStudents] = useState<Student[]>([]);
   const [name, setName] = useState('');
+  const [status, setStatus] = useState('Carregando alunos...');
 
-  function handleAddStudent() {
+  async function refreshStudents() {
+    const result = await fetchStudents();
+    setStudents(result.data);
+    setStatus(result.warning);
+  }
+
+  useEffect(() => {
+    refreshStudents();
+  }, []);
+
+  async function handleAddStudent() {
     if (!name.trim()) return;
 
-    const student: Student = {
-      id: Date.now(),
-      name,
-      age: 0,
-      weight: 0,
-      height: 0,
-      sex: 'Não informado',
-      goal: 'Hipertrofia',
-      phase: 'Manutenção',
-      frequency: 4,
-      level: 'Intermediário',
-      priority: [],
-      limitations: [],
-      alerts: []
-    };
+    try {
+      const context = await requireTenantContext();
 
-    const next = addStudent(store, student);
-    setStore(next);
-    setName('');
+      const result = await saveStudent({
+        tenant_id: context.tenant_id,
+        coach_id: context.coach_id,
+        name: name.trim(),
+        goal: 'Hipertrofia',
+        phase: 'maintenance',
+        training_frequency: 4,
+        priority_muscles: [],
+        alerts: [],
+        status: 'active',
+      });
+
+      const next = [result.data, ...students.filter((student) => student.id !== result.data.id)];
+      setStudents(next);
+      onStudentsChange?.(next);
+      setStatus(result.warning);
+      setName('');
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Nao foi possivel resolver tenant/coach.');
+    }
   }
 
-  function handleRename(id: number) {
-    const next = editStudent(store, id, {
-      name: `Aluno ${id}`
+  async function handleRename(student: Student) {
+    const result = await saveStudent({
+      ...student,
+      name: `${student.name} editado`,
     });
-    setStore(next);
+
+    const next = students.map((item) => (item.id === student.id ? result.data : item));
+    setStudents(next);
+    onStudentsChange?.(next);
+    setStatus(result.warning);
   }
 
-  function handleDelete(id: number) {
-    const next = removeStudent(store, id);
-    setStore(next);
+  async function handleArchive(id: string) {
+    const result = await archiveStudent(id);
+    const visibleStudents = result.data.filter((student) => student.deleted_at == null);
+    setStudents(visibleStudents);
+    onStudentsChange?.(visibleStudents);
+    setStatus(result.warning);
   }
 
   return (
     <div style={panel}>
-      <h2 style={{ marginBottom: 18 }}>CRUD real de alunos</h2>
+      <h2 style={{ marginBottom: 8 }}>CRUD real de alunos</h2>
+      <p style={muted}>{status}</p>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
         <input
@@ -59,26 +88,32 @@ export default function StudentCrudPanel() {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gap: 10 }}>
-        {store.students.map((student) => (
-          <div key={student.id} style={row}>
-            <div>
-              <strong>{student.name}</strong>
-              <p style={{ color: '#a0a0a0' }}>{student.goal}</p>
-            </div>
+      {students.length === 0 ? (
+        <div style={emptyState}>
+          Nenhum aluno cadastrado ainda. Cadastre o primeiro aluno para iniciar o controle DG Team.
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: 10 }}>
+          {students.map((student) => (
+            <div key={student.id} style={row}>
+              <div>
+                <strong>{student.name}</strong>
+                <p style={{ color: '#a0a0a0' }}>{student.goal} • {student.training_frequency}x/semana</p>
+              </div>
 
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => handleRename(student.id)} style={smallButton}>
-                Editar
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => handleRename(student)} style={smallButton}>
+                  Editar
+                </button>
 
-              <button onClick={() => handleDelete(student.id)} style={smallButton}>
-                Excluir
-              </button>
+                <button onClick={() => handleArchive(student.id)} style={smallButton}>
+                  Arquivar
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -112,6 +147,20 @@ const button = {
 const smallButton = {
   ...button,
   padding: '10px 12px'
+};
+
+const muted = {
+  color: '#a0a0a0',
+  marginTop: 0,
+  marginBottom: 18
+};
+
+const emptyState = {
+  background: '#0b0b0b',
+  border: '1px dashed #3a3a3a',
+  borderRadius: 16,
+  color: '#cfcfcf',
+  padding: 18
 };
 
 const row = {

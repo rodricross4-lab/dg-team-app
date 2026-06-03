@@ -1,7 +1,7 @@
 import { getPRMessage, getStudentPRSummary } from '../utils/prEngine';
 
 type Props = {
-  studentId: number;
+  studentId: string;
 };
 
 export default function PRInsightsCard({ studentId }: Props) {
