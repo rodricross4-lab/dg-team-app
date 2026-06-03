@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { exerciseLibrary, formatRepRange, formatRest } from '../data/exerciseLibrary';
+import { loadAppStore } from '../store/appStore';
 import { getStudentWorkouts, upsertWorkout } from '../store/operationalStore';
+import { exportWorkoutPdf } from '../utils/pdfExport';
 
 type Props = { studentId: string };
 
@@ -49,6 +51,10 @@ function createExerciseRowFromPreset(presetId: string, id: string = crypto.rando
     rest: formatRest(preset),
     notes: preset.notes || defaultExercise.notes
   };
+}
+
+function getStudentName(studentId: string) {
+  return loadAppStore().students.find((student) => student.id === studentId)?.name || 'Aluno';
 }
 
 export default function WorkoutBuilderPanel({ studentId }: Props) {
@@ -100,16 +106,20 @@ export default function WorkoutBuilderPanel({ studentId }: Props) {
     setSavedCount(getStudentWorkouts(studentId).length);
   }
 
+  function exportPdf() {
+    exportWorkoutPdf(getStudentName(studentId), `${workoutName} - ${week}`, exercises);
+  }
+
   return (
     <div style={panel}>
       <h2 style={{ marginBottom: 10 }}>Editor de treino do aluno</h2>
       <p style={{ color: '#a0a0a0', marginBottom: 18 }}>
-        Crie, edite e organize os treinos semanais do aluno com séries de aquecimento, ajuste e válidas.
+        Crie, edite e organize os treinos semanais do aluno com series de aquecimento, ajuste e validas.
       </p>
 
       <div style={statusBox}>
         <span>Treinos salvos deste aluno: <strong>{savedCount}</strong></span>
-        <span>Último salvamento: <strong>{savedAt || 'ainda não salvo'}</strong></span>
+        <span>Ultimo salvamento: <strong>{savedAt || 'ainda nao salvo'}</strong></span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
@@ -136,22 +146,23 @@ export default function WorkoutBuilderPanel({ studentId }: Props) {
                   <option key={preset.id} value={preset.id}>{preset.name}</option>
                 ))}
               </select>
-              <input value={exercise.name} onChange={(event) => updateExercise(exercise.id, { name: event.target.value })} style={input} placeholder="Exercício" />
+              <input value={exercise.name} onChange={(event) => updateExercise(exercise.id, { name: event.target.value })} style={input} placeholder="Exercicio" />
               <input value={exercise.group} onChange={(event) => updateExercise(exercise.id, { group: event.target.value })} style={input} placeholder="Grupamento" />
               <input value={exercise.warmup} onChange={(event) => updateExercise(exercise.id, { warmup: event.target.value })} style={input} placeholder="Aquecimento" />
-              <input value={exercise.feeder} onChange={(event) => updateExercise(exercise.id, { feeder: event.target.value })} style={input} placeholder="Séries de ajuste" />
-              <input value={exercise.validSets} onChange={(event) => updateExercise(exercise.id, { validSets: event.target.value })} style={input} placeholder="Séries válidas" />
+              <input value={exercise.feeder} onChange={(event) => updateExercise(exercise.id, { feeder: event.target.value })} style={input} placeholder="Series de ajuste" />
+              <input value={exercise.validSets} onChange={(event) => updateExercise(exercise.id, { validSets: event.target.value })} style={input} placeholder="Series validas" />
               <input value={exercise.reps} onChange={(event) => updateExercise(exercise.id, { reps: event.target.value })} style={input} placeholder="Range reps" />
               <input value={exercise.rest} onChange={(event) => updateExercise(exercise.id, { rest: event.target.value })} style={input} placeholder="Descanso" />
             </div>
 
-            <textarea value={exercise.notes} onChange={(event) => updateExercise(exercise.id, { notes: event.target.value })} style={{ ...input, minHeight: 80, marginTop: 12 }} placeholder="Observações técnicas" />
+            <textarea value={exercise.notes} onChange={(event) => updateExercise(exercise.id, { notes: event.target.value })} style={{ ...input, minHeight: 80, marginTop: 12 }} placeholder="Observacoes tecnicas" />
           </div>
         ))}
       </div>
 
-      <button onClick={addExercise} style={button}>+ Adicionar exercício</button>
+      <button onClick={addExercise} style={button}>+ Adicionar exercicio</button>
       <button onClick={saveWorkout} style={saveButton}>SALVAR TREINO DO ALUNO</button>
+      <button onClick={exportPdf} style={button}>EXPORTAR PDF DO TREINO</button>
     </div>
   );
 }
